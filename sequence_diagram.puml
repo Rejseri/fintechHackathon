@@ -1,0 +1,26 @@
+@startuml
+' Define participants
+participant User
+participant "StreamlitApp (app.py)" as App
+participant "LLMEngine" as LLM
+participant "OpenAI API" as API
+participant "GraphVisualizer" as GNN
+participant "Pyvis/NetworkX" as Pyvis
+
+' Define flow
+User -> App ++ : 1. Clicks "Analyze Risk" button
+App -> LLM ++ : 2. analyze_contradiction(claim, evidence)
+LLM -> API ++ : 3. chat.completions.create(prompt)
+API --> LLM -- : 4. Returns analysis (JSON)
+LLM --> App -- : 5. Returns {score: 8.5, ...}
+
+App -> GNN ++ : 6. generate_risk_map("TechCo", 8.5)
+GNN -> Pyvis ++ : 7. build_graph(data)
+GNN -> GNN : 8. simulate_contagion(8.5)
+GNN -> Pyvis ++ : 9. style_nodes() & save_to_html()
+Pyvis --> GNN -- : 10. Returns html_filepath
+GNN --> App -- : 11. Returns "risk_graph.html"
+
+App -> App : 12. st.components.v1.html(...)
+App --> User -- : 13. Displays score and interactive graph
+@enduml
