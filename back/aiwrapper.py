@@ -347,13 +347,11 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 	return result
 
 
-def validate_claim_with_web_search(claim: str, company_name: str, metric_name: str) -> bool:
+def validate_claim_with_web_search(claim: str, company_name: str, metric_name: str) -> tuple[bool, List[Dict[str, str]]]:
 	"""
 	Validate a specific ESG claim using OpenAI with web search capabilities.
 	
-	This function uses OpenAI's chat completions API. For better web search results,
-	consider using OpenAI's Assistants API with web search enabled, or integrate
-	with external web search APIs like Tavily, Serper, or Google Search API.
+	This function uses OpenAI's chat completions API with web search tool enabled.
 	
 	Args:
 		claim: The specific claim/promise to validate
@@ -361,10 +359,12 @@ def validate_claim_with_web_search(claim: str, company_name: str, metric_name: s
 		metric_name: The metric name for context
 	
 	Returns:
-		True if the claim is validated, False if contradicted or unverified
+		Tuple of (is_valid: bool, sources: List[Dict[str, str]])
+		- is_valid: True if the claim is validated, False if contradicted or unverified
+		- sources: List of source dictionaries with 'url' and 'description' keys
 	"""
 	if not claim or claim == "null" or str(claim).strip() == "":
-		return False
+		return False, []
 	
 	print(f"    Validating claim for '{metric_name}': {claim[:100]}...")
 	
@@ -395,27 +395,85 @@ Return your response as JSON with this structure:
 
 Return ONLY valid JSON."""
 
+	sources = []
 	try:
-		# Using chat completions with GPT-4o
-		# For production, consider using Assistants API with web search tool enabled
-		response = client.chat.completions.create(
-			model="gpt-5-nano",
-			messages=[
-				{"role": "system", "content": "You are an ESG fact-checker with access to current information. Validate ESG claims based on factual evidence. Be conservative - if evidence is unclear, mark as false."},
-				{"role": "user", "content": validation_prompt}
-			],
-			response_format={"type": "json_object"},
+		# Using responses API with web search tool enabled
+		# Combine system and user prompts into a single input
+		full_prompt = f"""You are an ESG fact-checker with access to current information. Validate ESG claims based on factual evidence. Be conservative - if evidence is unclear, mark as false.
+
+{validation_prompt}"""
+		
+		response = client.responses.create(
+			model="gpt-5",
+			tools=[{"type": "web_search"}],
+			input=full_prompt
 		)
 		
-		validation_result = json.loads(response.choices[0].message.content)
+		# Extract sources and text from response
+		# Response is iterable and contains a list of objects with different types
+		output_text = ""
+		
+		# Check if response has output_text attribute (direct access)
+		if hasattr(response, 'output_text'):
+			output_text = response.output_text or ""
+		
+		# Iterate through response items (response is iterable)
+		for item in response:
+			if isinstance(item, dict):
+				# Check for message type items
+				if item.get('type') == 'message' and item.get('role') == 'assistant':
+					content = item.get('content', [])
+					if isinstance(content, list):
+						for content_item in content:
+							if isinstance(content_item, dict):
+								# Extract text from output_text type items
+								if content_item.get('type') == 'output_text':
+									text = content_item.get('text', '')
+									if text:
+										output_text += text
+								
+								# Extract sources from annotations
+								annotations = content_item.get('annotations', [])
+								if isinstance(annotations, list):
+									for annotation in annotations:
+										if annotation.get('type') == 'url_citation':
+											url = annotation.get('url', '')
+											title = annotation.get('title', '')
+											if url:
+												sources.append({
+													"url": url,
+													"description": title or f"Source for {metric_name} validation"
+												})
+		
+		# Parse validation result from output text
+		validation_result = {}
+		if output_text:
+			try:
+				validation_result = json.loads(output_text)
+			except json.JSONDecodeError:
+				# If not valid JSON, try to extract JSON from the text
+				# Look for JSON object in the text
+				import re
+				json_match = re.search(r'\{[^{}]*"validated"[^{}]*\}', output_text)
+				if json_match:
+					try:
+						validation_result = json.loads(json_match.group())
+					except:
+						pass
+		
 		is_valid = validation_result.get("validated", False)
 		reasoning = validation_result.get("reasoning", "No reasoning provided")
 		print(f"      Result: {'✓ VALID' if is_valid else '✗ INVALID'} - {reasoning[:80]}")
-		return is_valid
+		if sources:
+			print(f"      Found {len(sources)} source(s)")
+		
+		return is_valid, sources
 		
 	except Exception as e:
 		print(f"      ERROR validating claim: {e}")
-		return False
+		import traceback
+		traceback.print_exc()
+		return False, []
 
 
 def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_name: str = None) -> Dict[str, Any]:
@@ -446,6 +504,8 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	# Step 1: Validate only raw parameters
 	print(f"  Step 1: Validating {len(ALL_RAW_PARAMS)} raw parameters...")
 	raw_truth = {}
+	all_sources = []  # Collect all sources from validations
+	metric_sources = {}  # Map metric names to their sources
 	params_to_validate = [p for p in ALL_RAW_PARAMS if p in promise_dict and promise_dict[p] is not None and promise_dict[p] != ""]
 	print(f"    Found {len(params_to_validate)} parameters with promises to validate")
 	
@@ -455,18 +515,25 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 			if promise_value is None or promise_value == "":
 				# No promise found, mark as false
 				raw_truth[param_name] = False
+				metric_sources[param_name] = []
 			else:
 				# Convert promise to string for validation
 				claim = str(promise_value)
-				# Validate the claim
+				# Validate the claim and get sources
 				print(f"    [{i}/{len(ALL_RAW_PARAMS)}] Validating: {param_name}")
-				is_valid = validate_claim_with_web_search(claim, company_name, param_name)
+				is_valid, sources = validate_claim_with_web_search(claim, company_name, param_name)
 				raw_truth[param_name] = is_valid
+				# Store sources for this specific metric
+				metric_sources[param_name] = sources
+				# Add sources to collection
+				all_sources.extend(sources)
 		else:
 			raw_truth[param_name] = False
+			metric_sources[param_name] = []
 	
 	validated_count = sum(1 for v in raw_truth.values() if v)
 	print(f"  Validation complete: {validated_count}/{len(ALL_RAW_PARAMS)} raw parameters validated as TRUE")
+	print(f"  Collected {len(all_sources)} total sources from validations")
 	
 	# Step 2: Propagate truth to derived metrics
 	# For derived metrics, if all underlying raw parameters are true, the derived metric is true
@@ -540,6 +607,23 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	print(f"  Propagated truth to {derived_count} derived metrics ({derived_true_count} validated as TRUE)")
 	
 	result["truth"] = truth_dict
+	
+	# Store sources in result (remove duplicates based on URL)
+	unique_sources = []
+	seen_urls = set()
+	for source in all_sources:
+		url = source.get("url", "")
+		if url and url not in seen_urls:
+			seen_urls.add(url)
+			unique_sources.append(source)
+	
+	result["sources"] = unique_sources
+	
+	# Store sources per metric for frontend access
+	result["metric_sources"] = metric_sources
+	print(f"  Stored {len(unique_sources)} unique sources")
+	print(f"  Stored sources for {len([k for k, v in metric_sources.items() if v])} metrics")
+	
 	return result
 
 

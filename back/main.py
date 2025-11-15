@@ -34,6 +34,7 @@ class CompanyData(BaseModel):
     promise: Dict[str, Any]  # ESG metrics with numeric values
     truth: Dict[str, bool]  # Boolean values for each metric
     sources: List[Source]
+    metric_sources: Optional[Dict[str, List[Source]]] = {}  # Sources per metric
 
 
 # Define base directory paths (needed by helper functions)
@@ -150,6 +151,39 @@ def process_company_analysis(ticker: str, company_data: Dict[str, Any]) -> Dict[
         original_truth.update(new_truth)  # This updates existing keys and adds new ones
         company_data["truth"] = original_truth
         
+        # Merge sources (combine and deduplicate by URL)
+        original_sources = company_data.get("sources", [])
+        new_sources = result.get("sources", [])
+        # Create a set of existing URLs for deduplication
+        existing_urls = {source.get("url", "") for source in original_sources if isinstance(source, dict)}
+        # Add new sources that don't already exist
+        for source in new_sources:
+            if isinstance(source, dict):
+                url = source.get("url", "")
+                if url and url not in existing_urls:
+                    original_sources.append(source)
+                    existing_urls.add(url)
+        company_data["sources"] = original_sources
+        
+        # Merge metric_sources (map of metric names to their sources)
+        original_metric_sources = company_data.get("metric_sources", {})
+        new_metric_sources = result.get("metric_sources", {})
+        # Merge metric sources, preserving existing and adding new
+        for metric_key, sources in new_metric_sources.items():
+            if metric_key in original_metric_sources:
+                # Merge sources for this metric, deduplicating by URL
+                existing_metric_urls = {s.get("url", "") for s in original_metric_sources[metric_key] if isinstance(s, dict)}
+                for source in sources:
+                    if isinstance(source, dict):
+                        url = source.get("url", "")
+                        if url and url not in existing_metric_urls:
+                            original_metric_sources[metric_key].append(source)
+                            existing_metric_urls.add(url)
+            else:
+                # New metric, add all its sources
+                original_metric_sources[metric_key] = sources
+        company_data["metric_sources"] = original_metric_sources
+        
         company_data["scanned"] = True
         
         print(f"  Analysis complete for {ticker}")
@@ -259,6 +293,13 @@ async def get_company_data(ticker: str):
 
     # Format sources
     sources = [Source(**source) for source in company_data.get("sources", [])]
+    
+    # Format metric_sources (convert each metric's sources to Source objects)
+    metric_sources = {}
+    raw_metric_sources = company_data.get("metric_sources", {})
+    for metric_key, metric_source_list in raw_metric_sources.items():
+        if isinstance(metric_source_list, list):
+            metric_sources[metric_key] = [Source(**s) if isinstance(s, dict) else s for s in metric_source_list]
 
     # Return the company data
     return CompanyData(
@@ -267,7 +308,8 @@ async def get_company_data(ticker: str):
         esg_report=company_data["esg_report"],
         promise=company_data["promise"],
         truth=company_data["truth"],
-        sources=sources
+        sources=sources,
+        metric_sources=metric_sources
     )
 
 

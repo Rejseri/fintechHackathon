@@ -7,6 +7,7 @@ function CardPopup({ ticker, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [selectedMetric, setSelectedMetric] = useState(null);
 
   useEffect(() => {
     let stepInterval = null;
@@ -95,9 +96,24 @@ function CardPopup({ ticker, onClose }) {
   const getFormattedTruths = () => {
     if (!companyData?.truth) return [];
     return Object.entries(companyData.truth).slice(0, 20).map(([key, value]) => ({
+      metricKey: key,
       metric: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       verified: value
     }));
+  };
+
+  // Get sources for a specific metric
+  const getSourcesForMetric = (metricKey) => {
+    if (!companyData?.metric_sources) return [];
+    return companyData.metric_sources[metricKey] || [];
+  };
+
+  // Handle metric click to show sources
+  const handleMetricClick = (metricKey) => {
+    const sources = getSourcesForMetric(metricKey);
+    if (sources.length > 0) {
+      setSelectedMetric({ metricKey, sources });
+    }
   };
 
   return (
@@ -190,16 +206,55 @@ function CardPopup({ ticker, onClose }) {
             <div className="truths-section">
               <h3>Truth Verification</h3>
               <ul className="truths-list">
-                {getFormattedTruths().map((truth, index) => (
-                  <li 
-                    key={index} 
-                    className={truth.verified ? 'truth-positive' : 'truth-negative'}
-                  >
-                    <strong>{truth.metric}:</strong> {truth.verified ? 'Verified ✓' : 'Not Verified ✗'}
-                  </li>
-                ))}
+                {getFormattedTruths().map((truth, index) => {
+                  const sources = getSourcesForMetric(truth.metricKey);
+                  const hasSources = sources.length > 0;
+                  return (
+                    <li 
+                      key={index} 
+                      className={`${truth.verified ? 'truth-positive' : 'truth-negative'} ${hasSources ? 'clickable-metric' : ''}`}
+                      onClick={() => hasSources && handleMetricClick(truth.metricKey)}
+                      style={hasSources ? { cursor: 'pointer' } : {}}
+                    >
+                      <strong>{truth.metric}:</strong> {truth.verified ? 'Verified ✓' : 'Not Verified ✗'}
+                      {hasSources && <span className="sources-indicator"> ({sources.length} source{sources.length !== 1 ? 's' : ''})</span>}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
+
+            {/* Sources Modal */}
+            {selectedMetric && (
+              <div className="sources-modal-overlay" onClick={() => setSelectedMetric(null)}>
+                <div className="sources-modal" onClick={(e) => e.stopPropagation()}>
+                  <div className="sources-modal-header">
+                    <h3>Sources for Verification</h3>
+                    <button className="sources-modal-close" onClick={() => setSelectedMetric(null)}>×</button>
+                  </div>
+                  <div className="sources-modal-content">
+                    <p className="sources-metric-name">
+                      {selectedMetric.metricKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </p>
+                    <ul className="sources-modal-list">
+                      {selectedMetric.sources.map((source, index) => (
+                        <li key={index} className="source-item">
+                          <a 
+                            href={source.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="source-link"
+                          >
+                            <span className="source-title">{source.description || source.url}</span>
+                            <span className="source-url">{source.url}</span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {companyData.sources && companyData.sources.length > 0 && (
               <div className="sources-section">
