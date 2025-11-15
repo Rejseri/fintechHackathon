@@ -9,6 +9,11 @@ import os
 import traceback
 import pypdfium2 as pdfium
 import aiwrapper
+import requests
+from openai import OpenAI
+import config as key
+import re
+import cloudscraper
 
 # --- 1. Pydantic Models (Your API's "Schema") ---
 # These define the shape of your data.
@@ -35,6 +40,12 @@ class CompanyData(BaseModel):
     truth: Dict[str, bool]  # Boolean values for each metric
     sources: List[Source]
     metric_sources: Optional[Dict[str, List[Source]]] = {}  # Sources per metric
+
+
+class AddCompanyRequest(BaseModel):
+    """Request model for adding a new company."""
+    company_name: str
+    ticker: Optional[str] = None  # Optional, will be generated if not provided
 
 
 # Define base directory paths (needed by helper functions)
@@ -203,6 +214,161 @@ def process_company_analysis(ticker: str, company_data: Dict[str, Any]) -> Dict[
         raise Exception(f"Error processing ESG analysis: {str(e)}\n{error_traceback}")
 
 
+# Initialize OpenAI client
+openai_client = OpenAI(api_key=key.OPENAI_KEY)
+
+
+def generate_ticker_from_name(company_name: str) -> str:
+    """Generate a ticker symbol from company name (first 4 uppercase letters)."""
+    # Remove common words and get first letters
+    words = re.findall(r'\b[A-Za-z]+\b', company_name)
+    if not words:
+        # Fallback: use first 4 characters
+        ticker = ''.join(c.upper() for c in company_name if c.isalnum())[:4]
+    else:
+        # Use first letters of words, up to 4 characters
+        ticker = ''.join(w[0].upper() for w in words[:4])
+        if len(ticker) < 2:
+            # Fallback if too short
+            ticker = ''.join(c.upper() for c in company_name if c.isalnum())[:4]
+    return ticker[:4]  # Ensure max 4 characters
+
+
+def create_company_template(ticker: str, name: str, esg_report_filename: str) -> Dict[str, Any]:
+    """Create a template company entry with all required fields."""
+    # Get template from existing company to ensure all fields are present
+    if COMPANY_DB and len(COMPANY_DB) > 0:
+        template_company = list(COMPANY_DB.values())[0]
+        promise_template = template_company.get("promise", {})
+        truth_template = template_company.get("truth", {})
+    else:
+        # Fallback: create minimal template (shouldn't happen if data.json exists)
+        promise_template = {}
+        truth_template = {}
+    
+    # Create new company entry with null/false values
+    new_company = {
+        "name": name,
+        "esg_report": esg_report_filename,
+        "promise": {k: None for k in promise_template.keys()},
+        "truth": {k: False for k in truth_template.keys()},
+        "sources": [],
+        "scanned": False
+    }
+    
+    return new_company
+
+
+def find_esg_report_url(company_name: str, ticker: str) -> str:
+    """Use OpenAI to find the latest ESG/sustainability report URL for a company."""
+    prompt = f"""Find the direct download URL for the most recent ESG (Environmental, Social, Governance) or Sustainability report PDF for the company "{company_name}" (stock ticker: {ticker}).
+
+Search the internet for:
+- The company's official ESG report PDF
+- Sustainability report PDF
+- Corporate responsibility report PDF
+- Annual sustainability report PDF
+- CSR report PDF
+- Environmental, Social, and Governance report PDF
+
+IMPORTANT REQUIREMENTS:
+1. The URL must be a DIRECT download link to a PDF file (ending in .pdf)
+2. Prefer URLs from the company's official website (usually investor relations or sustainability section)
+3. Look for the most recent report (2023, 2024, or latest available)
+4. Common URL patterns: 
+   - investor.[company].com/sustainability
+   - [company].com/esg
+   - [company].com/sustainability-report
+   - [company].com/csr
+
+If you find a page URL instead of a direct PDF link, try to construct the PDF URL based on common patterns, or return the page URL and we'll try to extract it.
+
+Return ONLY the URL, nothing else. No explanations, no additional text."""
+
+    try:
+        response = openai_client.responses.create(
+            model="gpt-5-nano",
+            input=prompt,
+            instructions="You are an expert at finding ESG report URLs. You have access to current web information. Return only valid URLs, no explanations.",
+            tools=[{"type": "web_search"}]
+        )
+        
+        url = response.output_text.strip()
+        # Clean up the URL (remove quotes, markdown links, whitespace, etc.)
+        url = url.strip('"\' \n\t')
+        # Remove markdown link format [text](url) -> url
+        if '](' in url:
+            url = url.split('](')[-1].rstrip(')')
+        url = url.strip('"\' \n\t')
+        
+        # Validate it looks like a URL
+        if not url.startswith(('http://', 'https://')):
+            raise ValueError(f"Invalid URL format returned: {url}")
+        
+        return url
+    except Exception as e:
+        raise Exception(f"Error finding ESG report URL: {str(e)}")
+
+
+def download_pdf(url: str, filepath: str) -> bool:
+    """Download a PDF from URL and save to filepath."""
+
+    # Create a scraper instance
+    scraper = cloudscraper.create_scraper()  # <-- Add this
+
+    try:
+        # These headers are now less critical,
+        # as cloudscraper will add its own better ones, but
+        # it's fine to keep them as a base.
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/pdf,application/octet-stream,*/*'
+        }
+
+        # Use the scraper instance instead of 'requests'
+        # response = requests.get(...)  <-- Your old code
+        response = scraper.get(url, headers=headers, stream=True, timeout=60,
+                               allow_redirects=True)  # <-- Use scraper.get
+
+        response.raise_for_status()
+
+        # ... (The rest of your code is perfect and doesn't need to change)
+
+        content_type = response.headers.get('Content-Type', '').lower()
+        final_url = response.url
+        is_pdf = 'pdf' in content_type or final_url.lower().endswith('.pdf')
+
+        if not is_pdf:
+            print(f"  Warning: URL doesn't appear to be a direct PDF link. Content-Type: {content_type}")
+
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        try:
+            test_doc = pdfium.PdfDocument(filepath)
+            page_count = len(test_doc)
+            test_doc.close()
+            if page_count == 0:
+                raise ValueError("PDF appears to be empty")
+            print(f"  Successfully downloaded PDF with {page_count} pages")
+        except Exception as e:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            raise ValueError(f"Downloaded file is not a valid PDF: {str(e)}")
+
+        return True
+    except Exception as e:
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except:
+                pass
+        raise Exception(f"Error downloading PDF: {str(e)}")
+
+
 # Load data from data/data.json
 COMPANY_DB = load_data(str(DATA_FILE))
 PORTFOLIO = extract_name_n_ticker(COMPANY_DB) if COMPANY_DB else []
@@ -267,6 +433,8 @@ async def get_company_data(ticker: str):
     3. Update data.json with the results
     4. Mark the company as scanned
     """
+    global COMPANY_DB
+    
     ticker_upper = ticker.upper()
     if not COMPANY_DB or ticker_upper not in COMPANY_DB:
         raise HTTPException(
@@ -311,6 +479,105 @@ async def get_company_data(ticker: str):
         sources=sources,
         metric_sources=metric_sources
     )
+
+
+@app.post("/api/company",
+          response_model=CompanyPortfolioItem,
+          summary="Add a new company to the portfolio")
+def add_company(request: AddCompanyRequest):
+    """
+    Add a new company to the portfolio by:
+    1. Finding the latest ESG report using OpenAI
+    2. Downloading the PDF to data folder
+    3. Creating company entry in data.json
+    
+    Note: ESG analysis will be performed automatically when the company data is first accessed.
+    
+    Returns the added company information.
+    """
+    global COMPANY_DB, PORTFOLIO
+    
+    try:
+        # Generate or use provided ticker
+        ticker = request.ticker.upper() if request.ticker else generate_ticker_from_name(request.company_name)
+        ticker = ticker.upper()
+        
+        # Check if company already exists
+        if COMPANY_DB and ticker in COMPANY_DB:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Company with ticker '{ticker}' already exists in the database."
+            )
+        
+        print(f"\n{'='*60}")
+        print(f"Adding new company: {request.company_name} ({ticker})")
+        print(f"{'='*60}")
+        
+        # Step 1: Find ESG report URL using OpenAI
+        print("Step 1: Finding ESG report URL...")
+        try:
+            esg_url = find_esg_report_url(request.company_name, ticker)
+            print(f"  Found ESG report URL: {esg_url}")
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to find ESG report URL: {str(e)}"
+            )
+        
+        # Step 2: Download PDF
+        print("Step 2: Downloading ESG report PDF...")
+        esg_filename = f"{ticker}_ESG.pdf"
+        pdf_path = BASE_DIR / "data" / esg_filename
+        
+        try:
+            download_pdf(esg_url, str(pdf_path))
+            print(f"  Downloaded PDF to: {pdf_path}")
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to download PDF: {str(e)}"
+            )
+        
+        # Step 3: Create company template entry
+        print("Step 3: Creating company entry...")
+        new_company = create_company_template(ticker, request.company_name, esg_filename)
+        
+        # Ensure scanned is False so analysis runs when company is accessed
+        new_company["scanned"] = False
+        
+        # Step 4: Add to database
+        if not COMPANY_DB:
+            COMPANY_DB = {}
+        COMPANY_DB[ticker] = new_company
+        
+        # Step 5: Save to file
+        if not save_data(str(DATA_FILE), COMPANY_DB):
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save company to database"
+            )
+        print(f"  Saved company entry to {DATA_FILE}")
+        
+        # Update portfolio list
+        PORTFOLIO = extract_name_n_ticker(COMPANY_DB)
+        
+        print(f"{'='*60}")
+        print(f"Successfully added company: {request.company_name} ({ticker})")
+        print(f"  ESG report downloaded. Analysis will run when company data is accessed.")
+        print(f"{'='*60}\n")
+        
+        return CompanyPortfolioItem(name=request.company_name, ticker=ticker)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        print(f"Error adding company: {str(e)}")
+        print(f"Full traceback:\n{error_traceback}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error adding company: {str(e)}"
+        )
 
 
 # --- 5. Run the App ---
