@@ -349,48 +349,52 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 
 def validate_claim_with_web_search(claim: str, company_name: str, metric_name: str) -> tuple[bool, List[Dict[str, str]]]:
 	"""
-	Validate a specific ESG claim using OpenAI with web search capabilities.
+	Check if an ESG claim can be invalidated using OpenAI with web search capabilities.
 	
-	This function uses OpenAI's chat completions API with web search tool enabled.
+	This function searches for evidence that CONTRADICTS or INVALIDATES the claim.
+	- If contradictory evidence is found, the claim is marked as invalid (False) and sources are returned
+	- If no contradictory evidence is found, the claim is considered valid (True) and no sources are returned
+	
+	This function uses OpenAI's responses API with web search tool enabled.
 	
 	Args:
-		claim: The specific claim/promise to validate
+		claim: The specific claim/promise to check
 		company_name: Name of the company
 		metric_name: The metric name for context
 	
 	Returns:
 		Tuple of (is_valid: bool, sources: List[Dict[str, str]])
-		- is_valid: True if the claim is validated, False if contradicted or unverified
-		- sources: List of source dictionaries with 'url' and 'description' keys
+		- is_valid: True if no invalidation evidence found (claim stands), False if invalidated
+		- sources: List of source dictionaries with 'url' and 'description' keys (only returned if claim is invalidated)
 	"""
 	if not claim or claim == "null" or str(claim).strip() == "":
 		return False, []
 	
-	print(f"    Validating claim for '{metric_name}': {claim[:100]}...")
+	print(f"    Checking for invalidation evidence for '{metric_name}': {claim[:100]}...")
 	
-	# Use OpenAI to search and validate the claim
-	validation_prompt = f"""You are an ESG fact-checker. Validate the following claim made by {company_name}:
+	# Use OpenAI to search for evidence that invalidates the claim
+	validation_prompt = f"""You are an ESG fact-checker. Your task is to find evidence that INVALIDATES or CONTRADICTS the following claim made by {company_name}:
 
 Claim: {claim}
 Metric: {metric_name}
 
-Based on your knowledge and available information, search for evidence that supports or contradicts this claim. Look for:
-- News articles about the company
-- Regulatory filings and SEC documents
-- Third-party ESG reports
-- Environmental violations, fines, or lawsuits
-- Public records and government databases
-- Industry reports and analysis
+Search for evidence that contradicts or invalidates this claim. Look specifically for:
+- News articles reporting violations, fines, or negative incidents related to this claim
+- Regulatory filings showing violations or non-compliance
+- Lawsuits or legal actions that contradict the claim
+- Government records showing fines, penalties, or enforcement actions
+- Third-party reports or investigations that contradict the claim
+- Public records of incidents that invalidate the claim
 
-Consider:
-- If the claim is contradicted by factual evidence (fines, violations, lawsuits), mark as FALSE
-- If the claim is supported by credible evidence, mark as TRUE
-- If you cannot find sufficient evidence to verify the claim, mark as FALSE (unverified claims are considered false)
+IMPORTANT: 
+- If you find clear evidence that contradicts or invalidates the claim, mark as INVALIDATED and provide the source
+- If you cannot find any evidence that contradicts the claim, mark as VALID (absence of contradiction means the claim stands)
+- Be thorough but conservative - only mark as invalidated if you find clear contradictory evidence
 
 Return your response as JSON with this structure:
 {{
-	"validated": true or false,
-	"reasoning": "brief explanation of your finding"
+	"invalidated": true or false,
+	"reasoning": "brief explanation - if invalidated, explain what evidence contradicts the claim. If valid, explain that no contradictory evidence was found."
 }}
 
 Return ONLY valid JSON."""
@@ -399,7 +403,7 @@ Return ONLY valid JSON."""
 	try:
 		# Using responses API with web search tool enabled
 		# Combine system and user prompts into a single input
-		full_prompt = f"""You are an ESG fact-checker with access to current information. Validate ESG claims based on factual evidence. Be conservative - if evidence is unclear, mark as false.
+		full_prompt = f"""You are an ESG fact-checker with access to current information. Your role is to find evidence that INVALIDATES or CONTRADICTS ESG claims. If you find clear contradictory evidence, mark the claim as invalidated. If you cannot find any contradictory evidence, the claim is considered valid (absence of contradiction means it stands).
 
 {validation_prompt}"""
 		
@@ -454,20 +458,30 @@ Return ONLY valid JSON."""
 				# If not valid JSON, try to extract JSON from the text
 				# Look for JSON object in the text
 				import re
-				json_match = re.search(r'\{[^{}]*"validated"[^{}]*\}', output_text)
+				# Try to find JSON with "invalidated" key
+				json_match = re.search(r'\{[^{}]*"invalidated"[^{}]*\}', output_text)
 				if json_match:
 					try:
 						validation_result = json.loads(json_match.group())
 					except:
 						pass
 		
-		is_valid = validation_result.get("validated", False)
-		reasoning = validation_result.get("reasoning", "No reasoning provided")
-		print(f"      Result: {'✓ VALID' if is_valid else '✗ INVALID'} - {reasoning[:80]}")
-		if sources:
-			print(f"      Found {len(sources)} source(s)")
+		# Check if claim was invalidated
+		# If invalidated is True, the claim is FALSE (not valid)
+		# If invalidated is False or not found, the claim is TRUE (valid - no contradiction found)
+		is_invalidated = validation_result.get("invalidated", False)
+		is_valid = not is_invalidated  # Valid if NOT invalidated
 		
-		return is_valid, sources
+		reasoning = validation_result.get("reasoning", "No reasoning provided")
+		
+		# Only show sources if the claim was invalidated (sources are the evidence of invalidation)
+		display_sources = sources if is_invalidated else []
+		
+		print(f"      Result: {'✗ INVALIDATED' if is_invalidated else '✓ VALID (no contradiction found)'} - {reasoning[:80]}")
+		if display_sources:
+			print(f"      Found {len(display_sources)} source(s) contradicting the claim")
+		
+		return is_valid, display_sources
 		
 	except Exception as e:
 		print(f"      ERROR validating claim: {e}")
