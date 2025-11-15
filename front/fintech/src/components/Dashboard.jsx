@@ -38,19 +38,10 @@ function Dashboard({ onSignOut }) {
     setSelectedTicker(null);
   };
 
-  const handleAddCompany = async (company) => {
-    // Company has been added by the backend
-    // Refresh the portfolio to show the new company
-    try {
-      const portfolio = await fetchPortfolio();
-      setCompanies(portfolio);
-      // Optionally show a success message
-      console.log(`Successfully added ${company.name} (${company.ticker})`);
-    } catch (err) {
-      console.error('Error refreshing portfolio:', err);
-      // Still show success since the company was added
-      alert(`Company ${company.name} has been added! Please refresh the page to see it.`);
-    }
+  const handleAddCompany = (company) => {
+    // Note: This is a placeholder. In a real app, you'd send this to the backend
+    // For now, we'll just show a message since the portfolio comes from the backend
+    alert(`Adding companies is not yet implemented. The portfolio is loaded from the backend.`);
   };
 
   return (
