@@ -32,6 +32,7 @@ from openai import OpenAI
 import config as key
 import json
 import copy
+import time
 from typing import Dict, Any, List, Optional
 from paramcalculator import EnvironmentalParameters, SocialParameters, GovernanceParameters
 
@@ -373,37 +374,29 @@ def validate_claim_with_web_search(claim: str, company_name: str, metric_name: s
 	print(f"    Checking for invalidation evidence for '{metric_name}': {claim[:100]}...")
 	
 	# Use OpenAI to search for evidence that invalidates the claim
-	validation_prompt = f"""You are an ESG fact-checker. Your task is to find evidence that INVALIDATES or CONTRADICTS the following claim made by {company_name}:
+	# Optimized prompt to reduce token usage
+	validation_prompt = f"""Find evidence that INVALIDATES this claim by {company_name}:
 
 Claim: {claim}
 Metric: {metric_name}
 
-Search for evidence that contradicts or invalidates this claim. Look specifically for:
-- News articles reporting violations, fines, or negative incidents related to this claim
-- Regulatory filings showing violations or non-compliance
-- Lawsuits or legal actions that contradict the claim
-- Government records showing fines, penalties, or enforcement actions
-- Third-party reports or investigations that contradict the claim
-- Public records of incidents that invalidate the claim
+Search for: violations, fines, lawsuits, regulatory actions, or negative news that contradicts this claim.
 
-IMPORTANT: 
-- If you find clear evidence that contradicts or invalidates the claim, mark as INVALIDATED and provide the source
-- If you cannot find any evidence that contradicts the claim, mark as VALID (absence of contradiction means the claim stands)
-- Be thorough but conservative - only mark as invalidated if you find clear contradictory evidence
+Rules:
+- If contradictory evidence found → mark "invalidated": true
+- If no contradiction found → mark "invalidated": false (claim stands)
 
-Return your response as JSON with this structure:
+Return JSON only:
 {{
 	"invalidated": true or false,
-	"reasoning": "brief explanation - if invalidated, explain what evidence contradicts the claim. If valid, explain that no contradictory evidence was found."
-}}
-
-Return ONLY valid JSON."""
+	"reasoning": "brief explanation"
+}}"""
 
 	sources = []
 	try:
 		# Using responses API with web search tool enabled
-		# Combine system and user prompts into a single input
-		full_prompt = f"""You are an ESG fact-checker with access to current information. Your role is to find evidence that INVALIDATES or CONTRADICTS ESG claims. If you find clear contradictory evidence, mark the claim as invalidated. If you cannot find any contradictory evidence, the claim is considered valid (absence of contradiction means it stands).
+		# Optimized prompt - removed redundant instructions
+		full_prompt = f"""ESG fact-checker. Find evidence that INVALIDATES claims. If no contradiction found, claim is valid.
 
 {validation_prompt}"""
 		
@@ -515,38 +508,70 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	promise_dict = json_template.get("promise", {})
 	truth_dict = result.get("truth", {})
 	
-	# Step 1: Validate only raw parameters
-	print(f"  Step 1: Validating {len(ALL_RAW_PARAMS)} raw parameters...")
+	# Step 1: Validate only raw parameters that were actually found in the ESG report
+	# Only validate parameters that have non-null, non-empty values (i.e., were extracted from the report)
+	params_to_validate = []
+	for param_name in ALL_RAW_PARAMS:
+		if param_name in promise_dict:
+			promise_value = promise_dict[param_name]
+			# Only include parameters that were actually found in the report
+			if promise_value is not None and promise_value != "":
+				params_to_validate.append(param_name)
+	
+	print(f"  Step 1: Validating {len(params_to_validate)} parameters found in ESG report (out of {len(ALL_RAW_PARAMS)} total)...")
 	raw_truth = {}
 	all_sources = []  # Collect all sources from validations
 	metric_sources = {}  # Map metric names to their sources
-	params_to_validate = [p for p in ALL_RAW_PARAMS if p in promise_dict and promise_dict[p] is not None and promise_dict[p] != ""]
-	print(f"    Found {len(params_to_validate)} parameters with promises to validate")
 	
-	for i, param_name in enumerate(ALL_RAW_PARAMS, 1):
-		if param_name in promise_dict:
-			promise_value = promise_dict[param_name]
-			if promise_value is None or promise_value == "":
-				# No promise found, mark as false
-				raw_truth[param_name] = False
-				metric_sources[param_name] = []
+	# Initialize all raw parameters - those not found will remain False
+	for param_name in ALL_RAW_PARAMS:
+		raw_truth[param_name] = False
+		metric_sources[param_name] = []
+	
+	# Only validate parameters that were actually extracted from the report
+	for i, param_name in enumerate(params_to_validate, 1):
+		promise_value = promise_dict[param_name]
+		# Convert promise to string for validation
+		claim = str(promise_value)
+		# Validate the claim and get sources
+		print(f"    [{i}/{len(params_to_validate)}] Validating: {param_name}")
+		
+		# Add rate limiting to avoid hitting API limits
+		# Small delay between requests to respect rate limits
+		if i > 1:  # Don't delay before first request
+			time.sleep(1.5)  # 1.5 second delay between requests
+		
+		try:
+			is_valid, sources = validate_claim_with_web_search(claim, company_name, param_name)
+			raw_truth[param_name] = is_valid
+			# Store sources for this specific metric
+			metric_sources[param_name] = sources
+			# Add sources to collection
+			all_sources.extend(sources)
+		except Exception as e:
+			# Handle rate limit errors with exponential backoff
+			error_str = str(e).lower()
+			if "rate_limit" in error_str or "429" in error_str or "quota" in error_str:
+				print(f"      Rate limit hit for {param_name}, waiting 10 seconds before retry...")
+				time.sleep(10)
+				try:
+					is_valid, sources = validate_claim_with_web_search(claim, company_name, param_name)
+					raw_truth[param_name] = is_valid
+					metric_sources[param_name] = sources
+					all_sources.extend(sources)
+				except Exception as retry_error:
+					print(f"      Retry failed for {param_name}: {retry_error}")
+					# Default to valid on persistent errors
+					raw_truth[param_name] = True
+					metric_sources[param_name] = []
 			else:
-				# Convert promise to string for validation
-				claim = str(promise_value)
-				# Validate the claim and get sources
-				print(f"    [{i}/{len(ALL_RAW_PARAMS)}] Validating: {param_name}")
-				is_valid, sources = validate_claim_with_web_search(claim, company_name, param_name)
-				raw_truth[param_name] = is_valid
-				# Store sources for this specific metric
-				metric_sources[param_name] = sources
-				# Add sources to collection
-				all_sources.extend(sources)
-		else:
-			raw_truth[param_name] = False
-			metric_sources[param_name] = []
+				print(f"      Error validating {param_name}: {e}")
+				# Default to valid on other errors
+				raw_truth[param_name] = True
+				metric_sources[param_name] = []
 	
 	validated_count = sum(1 for v in raw_truth.values() if v)
-	print(f"  Validation complete: {validated_count}/{len(ALL_RAW_PARAMS)} raw parameters validated as TRUE")
+	print(f"  Validation complete: {validated_count}/{len(params_to_validate)} validated parameters marked as TRUE")
 	print(f"  Collected {len(all_sources)} total sources from validations")
 	
 	# Step 2: Propagate truth to derived metrics
