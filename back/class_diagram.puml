@@ -2,49 +2,61 @@
 ' Set direction
 left to right direction
 
-' Define classes
-class App {
-  +run()
-  +handle_analysis_click()
-  +display_results(score_data, graph_html)
+' Define Pydantic Models as classes
+class CompanyPortfolioItem {
+  +name: str
+  +ticker: str
 }
 
-class LLMEngine {
-  -client: OpenAI
-  +analyze_contradiction(claim: str, evidence: str) dict
-  -build_prompt(claim, evidence) str
+class DiscrepancySource {
+  +title: str
+  +url: str
+  +snippet: str
 }
 
-class GraphVisualizer {
-  +generate_risk_map(target_company: str, risk_score: float) str
-  -build_graph(data) : Graph
-  -simulate_contagion(score) : dict
-  -style_nodes(graph) : Graph
-  -save_to_html(net) : str
+class DiscrepancyRisk {
+  +score: float
+  +explanation: str
+  +contradiction_found: bool
 }
 
-' External Libraries
-class OpenAI <<External Library>> {
-  +chat.completions.create()
+class CompanyAnalysis {
+  +ticker: str
+  +company_name: str
+  +financial_data: Dict
+  +discrepancy_risk: DiscrepancyRisk
+  +sources: List<DiscrepancySource>
 }
 
-class NetworkX <<External Library>> {
-  +Graph()
-  +add_node()
-  +add_edge()
-}
+' Define FastAPI App as a component
+class FastAPI_App <<FastAPI>> {
+  ' Helper functions
+  - load_data(file_path: str): Dict
+  - extract_name_n_ticker(data: Dict): List<CompanyPortfolioItem>
+  - get_mock_llm_analysis(claim: str, evidence: List): DiscrepancyRisk
 
-class Pyvis <<External Library>> {
-  +Network()
-  +from_nx()
-  +show()
+  ' Endpoint handler methods
+  + read_root()
+  + get_portfolio()
+  + get_company_analysis(ticker: str)
 }
 
 ' Define relationships
-App ..> LLMEngine : "uses 1"
-App ..> GraphVisualizer : "uses 1"
-LLMEngine ..> OpenAI : "uses 1"
-GraphVisualizer ..> NetworkX : "uses"
-GraphVisualizer ..> Pyvis : "uses"
+CompanyAnalysis "1" *-- "1" DiscrepancyRisk : contains
+CompanyAnalysis "1" *-- "0..*" DiscrepancySource : contains
+
+FastAPI_App ..> CompanyAnalysis : "responds with"
+FastAPI_App ..> CompanyPortfolioItem : "responds with"
+
+
+' Note about the data source and endpoints
+note right of FastAPI_App
+  Data is loaded from `data.json`.
+
+  **Endpoints:**
+  - `GET /` -> read_root()
+  - `GET /api/portfolio` -> get_portfolio()
+  - `GET /api/company/{ticker}` -> get_company_analysis()
+end note
 
 @enduml

@@ -1,26 +1,22 @@
 @startuml
 ' Define participants
-participant User
-participant "StreamlitApp (app.py)" as App
-participant "LLMEngine" as LLM
-participant "OpenAI API" as API
-participant "GraphVisualizer" as GNN
-participant "Pyvis/NetworkX" as Pyvis
+participant "User's Browser" as Frontend
+participant "FastAPI Backend (main.py)" as Backend
+participant "Mock Company DB (data.json)" as DB
 
-' Define flow
-User -> App ++ : 1. Clicks "Analyze Risk" button
-App -> LLM ++ : 2. analyze_contradiction(claim, evidence)
-LLM -> API ++ : 3. chat.completions.create(prompt)
-API --> LLM -- : 4. Returns analysis (JSON)
-LLM --> App -- : 5. Returns {score: 8.5, ...}
+' Define flow for getting the portfolio
+Frontend -> Backend ++ : 1. GET /api/portfolio
+Backend -> Backend : 2. load_data("data.json")
+Backend -> DB ++ : 3. Reads data.json
+DB --> Backend -- : 4. Returns file content
+Backend -> Backend : 5. extract_name_n_ticker(data)
+Backend --> Frontend -- : 6. Returns List[CompanyPortfolioItem]
 
-App -> GNN ++ : 6. generate_risk_map("TechCo", 8.5)
-GNN -> Pyvis ++ : 7. build_graph(data)
-GNN -> GNN : 8. simulate_contagion(8.5)
-GNN -> Pyvis ++ : 9. style_nodes() & save_to_html()
-Pyvis --> GNN -- : 10. Returns html_filepath
-GNN --> App -- : 11. Returns "risk_graph.html"
+' Define flow for getting a single company analysis
+Frontend -> Backend ++ : 7. GET /api/company/{ticker}
+Backend -> DB ++ : 8. Accesses MOCK_COMPANY_DB[ticker]
+DB --> Backend -- : 9. Returns company data
+Backend -> Backend : 10. get_mock_llm_analysis(claim, evidence)
+Backend --> Frontend -- : 11. Returns CompanyAnalysis JSON
 
-App -> App : 12. st.components.v1.html(...)
-App --> User -- : 13. Displays score and interactive graph
 @enduml
