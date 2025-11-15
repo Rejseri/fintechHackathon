@@ -2,9 +2,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
-import config as key
+from pathlib import Path
 
 # --- 1. Pydantic Models (Your API's "Schema") ---
 # These define the shape of your data.
@@ -16,29 +16,24 @@ class CompanyPortfolioItem(BaseModel):
     ticker: str
 
 
-class DiscrepancySource(BaseModel):
-    """A single news article or legal filing."""
-    title: str
+class Source(BaseModel):
+    """A single source reference."""
     url: str
-    snippet: str
+    description: str
 
 
-class DiscrepancyRisk(BaseModel):
-    """The output of your LLM analysis."""
-    score: float  # The 0-10 "hypocrisy score"
-    explanation: str
-    contradiction_found: bool
-
-
-class CompanyAnalysis(BaseModel):
-    """The full analysis response for a single company."""
+class CompanyData(BaseModel):
+    """The full company data response."""
     ticker: str
-    company_name: str
-    financial_data: Dict[str, Any]  # Flexible for any financial data
-    discrepancy_risk: DiscrepancyRisk
-    sources: List[DiscrepancySource]
+    name: str
+    esg_report: str
+    promise: Dict[str, Any]  # ESG metrics with numeric values
+    truth: Dict[str, bool]  # Boolean values for each metric
+    sources: List[Source]
 
-def load_data(file_path):
+
+def load_data(file_path: str) -> Optional[Dict[str, Any]]:
+    """Load JSON data from file."""
     try:
         with open(file_path, 'r') as file:
             return json.load(file)
@@ -49,35 +44,20 @@ def load_data(file_path):
         print("Error: The file content is not valid JSON.")
         return None
 
+
 def extract_name_n_ticker(data: Dict[str, Any]) -> List[CompanyPortfolioItem]:
+    """Extract company name and ticker from data."""
     if not data:
         return []
-    return [{"name": company["name"], "ticker": ticker} for ticker, company in data.items()]
+    return [CompanyPortfolioItem(name=company["name"], ticker=ticker) 
+            for ticker, company in data.items()]
 
 
-MOCK_COMPANY_DB = load_data('../data/data.json')
-MOCK_PORTFOLIO = extract_name_n_ticker(MOCK_COMPANY_DB)
-
-
-def get_mock_llm_analysis(claim: str, evidence_list: List[Dict]) -> DiscrepancyRisk:
-    """
-    This MOCKS your LLM call from the previous step.
-    It simulates the OpenAI API call based on the mock evidence.
-    """
-    if not evidence_list:
-        return DiscrepancyRisk(
-            score=0.5,  # Very low risk
-            explanation="No significant contradictions found in public filings.",
-            contradiction_found=False
-        )
-
-    # Mock a high-risk scenario
-    mock_explanation = f"Direct contradiction found. Claim was '{claim[:50]}...' but evidence shows '{evidence_list[0]['title']}'."
-    return DiscrepancyRisk(
-        score=8.5,
-        explanation=mock_explanation,
-        contradiction_found=True
-    )
+# Load data from data/data.json (relative to back directory)
+BASE_DIR = Path(__file__).parent.parent
+DATA_FILE = BASE_DIR / "data" / "data.json"
+COMPANY_DB = load_data(str(DATA_FILE))
+PORTFOLIO = extract_name_n_ticker(COMPANY_DB) if COMPANY_DB else []
 
 
 # --- 3. FastAPI App & CORS ---
@@ -120,39 +100,39 @@ async def read_root():
 async def get_portfolio():
     """
     Retrieves a list of companies in the user's portfolio.
+    Returns all companies from the data.json file.
     """
-    return MOCK_PORTFOLIO
+    return PORTFOLIO
 
 
 @app.get("/api/company/{ticker}",
-         response_model=CompanyAnalysis,
-         summary="Get detailed analysis for a single company")
-async def get_company_analysis(ticker: str):
+         response_model=CompanyData,
+         summary="Get detailed data for a single company")
+async def get_company_data(ticker: str):
     """
-    Takes a company ticker (e.g., 'TCO') and returns financial data,
-    discrepancy risk, and supporting sources.
+    Takes a company ticker (e.g., 'AKZA') and returns the full company data
+    including promise metrics, truth values, and sources.
     """
     ticker_upper = ticker.upper()
-    if not MOCK_COMPANY_DB or ticker_upper not in MOCK_COMPANY_DB:
-        raise HTTPException(status_code=404, detail="Company ticker not found in mock database.")
+    if not COMPANY_DB or ticker_upper not in COMPANY_DB:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Company ticker '{ticker_upper}' not found in database."
+        )
 
-    # Get data from our "database"
-    company_data = MOCK_COMPANY_DB[ticker_upper]
+    # Get data from our database
+    company_data = COMPANY_DB[ticker_upper]
 
-    # 1. Simulate the LLM call
-    claim = company_data["esg_claim"]
-    evidence = company_data["evidence"]
-    risk_analysis = get_mock_llm_analysis(claim, evidence)
+    # Format sources
+    sources = [Source(**source) for source in company_data.get("sources", [])]
 
-    # 2. Format the sources into the Pydantic model
-    sources = [DiscrepancySource(**source_data) for source_data in evidence]
-
-    # 3. Assemble and return the final response
-    return CompanyAnalysis(
+    # Return the company data
+    return CompanyData(
         ticker=ticker_upper,
-        company_name=company_data["name"],
-        financial_data=company_data["financials"],
-        discrepancy_risk=risk_analysis,
+        name=company_data["name"],
+        esg_report=company_data["esg_report"],
+        promise=company_data["promise"],
+        truth=company_data["truth"],
         sources=sources
     )
 
