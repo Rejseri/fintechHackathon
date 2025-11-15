@@ -1,6 +1,7 @@
 from openai import OpenAI
+import config as key
 
-client = OpenAI()
+client = OpenAI(api_key=key.OPENAI_KEY)
 
 # TODO: Complete truth searching function
 def find_truths():

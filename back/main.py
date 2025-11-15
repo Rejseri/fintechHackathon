@@ -6,7 +6,6 @@ from typing import List, Dict, Any
 import json
 import config as key
 
-
 # --- 1. Pydantic Models (Your API's "Schema") ---
 # These define the shape of your data.
 # FastAPI uses them to validate requests and document your API.
@@ -56,7 +55,7 @@ def extract_name_n_ticker(data: Dict[str, Any]) -> List[CompanyPortfolioItem]:
     return [{"name": company["name"], "ticker": ticker} for ticker, company in data.items()]
 
 
-MOCK_COMPANY_DB = load_data('data.json')
+MOCK_COMPANY_DB = load_data('../data/data.json')
 MOCK_PORTFOLIO = extract_name_n_ticker(MOCK_COMPANY_DB)
 
 
