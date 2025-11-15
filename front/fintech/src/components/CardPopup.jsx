@@ -1,3 +1,4 @@
+import { getCompanyLogo } from '../data/companies';
 import './CardPopup.css';
 
 function CardPopup({ card, onClose }) {
@@ -9,13 +10,27 @@ function CardPopup({ card, onClose }) {
     }
   };
 
+  const logoUrl = card.logo || (card.company ? getCompanyLogo(card.company.domain) : null);
+
   return (
     <div className="popup-overlay" onClick={handleOverlayClick}>
       <div className="popup-content">
         <button className="close-button" onClick={onClose}>
           ×
         </button>
-        <h2>{card.title}</h2>
+        <div className="popup-header">
+          {logoUrl && (
+            <img 
+              src={logoUrl} 
+              alt={card.title} 
+              className="popup-logo"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+          )}
+          <h2>{card.title}</h2>
+        </div>
         <p className="popup-description">{card.details.description}</p>
         
         <div className="metrics-section">

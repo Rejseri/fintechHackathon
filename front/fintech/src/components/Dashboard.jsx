@@ -1,133 +1,65 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CardPopup from './CardPopup';
+import CompanySearchPopup from './CompanySearchPopup';
+import { getCompanyLogo } from '../data/companies';
 import './Dashboard.css';
 
-// Sample card data
-const cardData = [
-  {
-    id: 1,
-    title: 'Financial Overview',
-    overview: 'Total revenue increased by 15% this quarter',
-    thumbnail: 'Revenue: $2.5M',
+// Helper function to generate card data from company
+const generateCardFromCompany = (company, id) => {
+  // Generate some sample metrics based on company
+  const sampleMetrics = {
+    'Market Cap': `$${(Math.random() * 100 + 10).toFixed(1)}B`,
+    'Revenue': `$${(Math.random() * 50 + 5).toFixed(1)}B`,
+    'Employees': `${Math.floor(Math.random() * 50000 + 1000).toLocaleString()}`,
+    'Growth Rate': `+${(Math.random() * 30 + 5).toFixed(1)}%`
+  };
+
+  const sampleHighlights = [
+    'Strong market position',
+    'Innovative product portfolio',
+    'Growing customer base',
+    'Strategic partnerships'
+  ];
+
+  return {
+    id,
+    title: company.name,
+    company: company,
+    overview: `${company.name} is a leading company in their industry`,
+    thumbnail: company.domain,
+    logo: getCompanyLogo(company.domain),
     details: {
-      description: 'Comprehensive financial analysis showing strong growth across all sectors.',
-      metrics: {
-        'Total Revenue': '$2,500,000',
-        'Growth Rate': '+15%',
-        'Active Accounts': '12,450',
-        'Profit Margin': '23%'
-      },
-      highlights: [
-        'Record-breaking quarter performance',
-        'Expansion into 3 new markets',
-        'Customer retention rate at 94%'
-      ]
+      description: `${company.name} (${company.domain}) is a prominent company with strong market presence and innovative solutions.`,
+      metrics: sampleMetrics,
+      highlights: sampleHighlights
     }
-  },
-  {
-    id: 2,
-    title: 'User Analytics',
-    overview: 'Active users reached 50K milestone',
-    thumbnail: 'Users: 50,000',
-    details: {
-      description: 'User engagement metrics showing significant growth in platform adoption.',
-      metrics: {
-        'Active Users': '50,000',
-        'New Signups': '5,200',
-        'Daily Active': '35,000',
-        'Retention Rate': '87%'
-      },
-      highlights: [
-        '50K milestone achieved',
-        'Mobile app usage up 40%',
-        'User satisfaction score: 4.8/5'
-      ]
-    }
-  },
-  {
-    id: 3,
-    title: 'Transaction Volume',
-    overview: 'Processing 1M+ transactions monthly',
-    thumbnail: 'Transactions: 1.2M',
-    details: {
-      description: 'Transaction processing statistics and performance metrics.',
-      metrics: {
-        'Monthly Volume': '1,200,000',
-        'Success Rate': '99.8%',
-        'Avg Processing Time': '0.3s',
-        'Peak Hour Volume': '15,000/hr'
-      },
-      highlights: [
-        'Zero downtime this quarter',
-        'Processing speed improved by 25%',
-        'Fraud detection rate: 99.9%'
-      ]
-    }
-  },
-  {
-    id: 4,
-    title: 'Market Trends',
-    overview: 'Market capitalization up 30%',
-    thumbnail: 'Market Cap: $45M',
-    details: {
-      description: 'Market analysis and trend indicators showing positive momentum.',
-      metrics: {
-        'Market Cap': '$45,000,000',
-        'Growth': '+30%',
-        'Market Share': '12%',
-        'Valuation': '$180M'
-      },
-      highlights: [
-        'Strong investor confidence',
-        'Partnership with 5 major institutions',
-        'Industry recognition award received'
-      ]
-    }
-  },
-  {
-    id: 5,
-    title: 'Security Metrics',
-    overview: 'Zero security breaches this year',
-    thumbnail: 'Security: 100%',
-    details: {
-      description: 'Comprehensive security monitoring and threat detection statistics.',
-      metrics: {
-        'Security Score': '100%',
-        'Threats Blocked': '12,450',
-        'Incidents': '0',
-        'Compliance': '100%'
-      },
-      highlights: [
-        'ISO 27001 certified',
-        'SOC 2 Type II compliant',
-        'Penetration testing passed'
-      ]
-    }
-  },
-  {
-    id: 6,
-    title: 'Customer Support',
-    overview: 'Average response time under 2 minutes',
-    thumbnail: 'Response: 1.8min',
-    details: {
-      description: 'Customer support performance and satisfaction metrics.',
-      metrics: {
-        'Avg Response Time': '1.8 minutes',
-        'Resolution Rate': '95%',
-        'Satisfaction Score': '4.9/5',
-        'Tickets Resolved': '8,500'
-      },
-      highlights: [
-        '24/7 support availability',
-        'AI chatbot handles 60% of queries',
-        'Customer satisfaction at all-time high'
-      ]
-    }
-  }
-];
+  };
+};
 
 function Dashboard({ onSignOut }) {
+  const [companies, setCompanies] = useState([]);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [showCompanySearch, setShowCompanySearch] = useState(false);
+
+  // Load companies from localStorage on mount
+  useEffect(() => {
+    const savedCompanies = localStorage.getItem('portfolioCompanies');
+    if (savedCompanies) {
+      try {
+        const parsed = JSON.parse(savedCompanies);
+        setCompanies(parsed);
+      } catch (e) {
+        console.error('Error loading companies:', e);
+      }
+    }
+  }, []);
+
+  // Save companies to localStorage whenever companies change
+  useEffect(() => {
+    if (companies.length > 0) {
+      localStorage.setItem('portfolioCompanies', JSON.stringify(companies));
+    }
+  }, [companies]);
 
   const handleCardClick = (card) => {
     setSelectedCard(card);
@@ -137,29 +69,95 @@ function Dashboard({ onSignOut }) {
     setSelectedCard(null);
   };
 
+  const handleAddCompany = (company) => {
+    // Check if company already exists
+    const exists = companies.some(c => c.domain === company.domain);
+    if (exists) {
+      alert(`${company.name} is already in your portfolio!`);
+      return;
+    }
+
+    const newId = companies.length > 0 
+      ? Math.max(...companies.map(c => c.id)) + 1 
+      : 1;
+    
+    const newCompany = {
+      id: newId,
+      name: company.name,
+      domain: company.domain
+    };
+
+    setCompanies([...companies, newCompany]);
+  };
+
+  // Convert companies to card data
+  const cardData = companies.map(company => generateCardFromCompany(company, company.id));
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>Dashboard</h1>
-        <button onClick={onSignOut} className="signout-button">
-          Sign Out
-        </button>
-      </header>
-      <div className="cards-grid">
-        {cardData.map((card) => (
-          <div
-            key={card.id}
-            className="card"
-            onClick={() => handleCardClick(card)}
+        <h1>Portfolio Dashboard</h1>
+        <div className="header-actions">
+          <button 
+            onClick={() => setShowCompanySearch(true)} 
+            className="add-company-button"
           >
-            <h2>{card.title}</h2>
-            <p className="card-overview">{card.overview}</p>
-            <div className="card-thumbnail">{card.thumbnail}</div>
+            + Add Company
+          </button>
+          <button onClick={onSignOut} className="signout-button">
+            Sign Out
+          </button>
+        </div>
+      </header>
+      
+      {cardData.length === 0 ? (
+        <div className="empty-portfolio">
+          <div className="empty-portfolio-content">
+            <h2>Your portfolio is empty</h2>
+            <p>Start building your portfolio by adding companies</p>
+            <button 
+              onClick={() => setShowCompanySearch(true)} 
+              className="add-company-button-large"
+            >
+              + Add Your First Company
+            </button>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="cards-grid">
+          {cardData.map((card) => (
+            <div
+              key={card.id}
+              className="card"
+              onClick={() => handleCardClick(card)}
+            >
+              {card.logo && (
+                <img 
+                  src={card.logo} 
+                  alt={card.title} 
+                  className="card-logo"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              )}
+              <h2>{card.title}</h2>
+              <p className="card-overview">{card.overview}</p>
+              <div className="card-thumbnail">{card.thumbnail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {selectedCard && (
         <CardPopup card={selectedCard} onClose={handleClosePopup} />
+      )}
+
+      {showCompanySearch && (
+        <CompanySearchPopup
+          onClose={() => setShowCompanySearch(false)}
+          onAddCompany={handleAddCompany}
+        />
       )}
     </div>
   );
