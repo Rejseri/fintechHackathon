@@ -45,11 +45,22 @@ function CardPopup({ card, onClose }) {
           </div>
         </div>
 
-        <div className="highlights-section">
-          <h3>Highlights</h3>
-          <ul className="highlights-list">
-            {card.details.highlights.map((highlight, index) => (
-              <li key={index}>{highlight}</li>
+        <div className="promises-section">
+          <h3>Promises</h3>
+          <ul className="promises-list">
+            {card.details.promises && card.details.promises.map((promise, index) => (
+              <li key={index}>{promise}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="truths-section">
+          <h3>Truths</h3>
+          <ul className="truths-list">
+            {card.details.truths && card.details.truths.map((truth, index) => (
+              <li key={index} className={truth.positive ? 'truth-positive' : 'truth-negative'}>
+                {truth.text}
+              </li>
             ))}
           </ul>
         </div>

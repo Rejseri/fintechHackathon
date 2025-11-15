@@ -14,11 +14,21 @@ const generateCardFromCompany = (company, id) => {
     'Growth Rate': `+${(Math.random() * 30 + 5).toFixed(1)}%`
   };
 
-  const sampleHighlights = [
-    'Strong market position',
-    'Innovative product portfolio',
-    'Growing customer base',
-    'Strategic partnerships'
+  const samplePromises = [
+    'Commitment to sustainable growth',
+    'Innovation-driven product development',
+    'Customer-first approach',
+    'Transparent business practices',
+    'Long-term value creation'
+  ];
+
+  // Generate truths with random positive/negative status
+  const sampleTruths = [
+    { text: 'ESG compliance score above industry average', positive: Math.random() > 0.3 },
+    { text: 'Recent regulatory filings show strong financial health', positive: Math.random() > 0.4 },
+    { text: 'Market share has been declining over the past quarter', positive: false },
+    { text: 'Employee satisfaction ratings are at record highs', positive: Math.random() > 0.3 },
+    { text: 'Supply chain disruptions affecting production capacity', positive: false }
   ];
 
   return {
@@ -31,7 +41,8 @@ const generateCardFromCompany = (company, id) => {
     details: {
       description: `${company.name} (${company.domain}) is a prominent company with strong market presence and innovative solutions.`,
       metrics: sampleMetrics,
-      highlights: sampleHighlights
+      promises: samplePromises,
+      truths: sampleTruths
     }
   };
 };
@@ -96,13 +107,27 @@ function Dashboard({ onSignOut }) {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>Portfolio Dashboard</h1>
+        <div className="header-left">
+          <div className="header-title-section">
+            <h1>Portfolio</h1>
+            <span className="header-subtitle">Manage your investments</span>
+          </div>
+        </div>
         <div className="header-actions">
           <button 
             onClick={() => setShowCompanySearch(true)} 
             className="add-company-button"
           >
-            + Add Company
+            <span className="button-icon">+</span>
+            Add Company
+          </button>
+          <button 
+            className="contagion-button"
+            onClick={() => {
+              // Placeholder for future functionality
+            }}
+          >
+            Contagion
           </button>
           <button onClick={onSignOut} className="signout-button">
             Sign Out
