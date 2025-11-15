@@ -257,28 +257,35 @@
   margin-bottom: 40px;
 }
 
-.loading-spinner-container {
-  width: 80px;
-  height: 80px;
+.emoji-loader-container {
+  width: 100px;
+  height: 100px;
   position: relative;
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.loading-spinner {
-  width: 80px;
-  height: 80px;
-  border: 6px solid #f0f0f0;
-  border-top: 6px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.emoji-loader {
+  font-size: 64px;
+  line-height: 1;
+  animation: emoji-pulse 3s ease-in-out infinite;
+  display: inline-block;
+  transform-origin: center center;
+  filter: brightness(1);
 }
 
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
+@keyframes emoji-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1) saturate(1);
   }
-  100% {
-    transform: rotate(360deg);
+  50% {
+    transform: scale(1.04);
+    opacity: 0.925;
+    filter: brightness(1.15) saturate(0.85);
   }
 }
 

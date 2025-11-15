@@ -109,8 +109,8 @@ function CardPopup({ ticker, onClose }) {
         
         {loading ? (
           <div className="popup-loading">
-            <div className="loading-spinner-container">
-              <div className="loading-spinner"></div>
+            <div className="emoji-loader-container">
+              <div className="emoji-loader">⏳</div>
             </div>
             <h2>Analyzing ESG Report</h2>
             <p className="loading-subtitle">This may take a minute...</p>
