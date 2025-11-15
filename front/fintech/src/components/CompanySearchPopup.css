@@ -192,18 +192,51 @@
 
 .adding-status {
   text-align: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
 }
 
-.loading-spinner-large {
-  font-size: 48px;
-  margin-bottom: 16px;
-  animation: spin 2s linear infinite;
+.emoji-loader-container {
+  width: 100px;
+  height: 100px;
+  position: relative;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.emoji-loader {
+  font-size: 64px;
+  line-height: 1;
+  animation: emoji-pulse 3s ease-in-out infinite;
+  display: inline-block;
+  transform-origin: center center;
+  filter: brightness(1);
+}
+
+@keyframes emoji-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.925;
+    filter: brightness(1.15) saturate(0.85);
+  }
+}
+
+.adding-status h2 {
+  margin: 24px 0 8px 0;
+  color: #333;
+  font-size: 1.8em;
+  font-weight: 600;
 }
 
 .adding-status p {
@@ -213,11 +246,164 @@
   font-weight: 600;
 }
 
-.status-detail {
-  color: #666 !important;
-  font-size: 14px !important;
-  font-weight: normal !important;
-  margin-top: 12px !important;
+.loading-subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 40px;
+}
+
+.loading-steps {
+  width: 100%;
+  max-width: 400px;
+  margin: 30px 0;
+}
+
+.loading-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border-left: 4px solid #e0e0e0;
+  animation: fadeInStep 0.5s ease forwards;
+  opacity: 0;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.loading-step.active {
+  border-left-color: #667eea;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e0e8ff 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateX(4px);
+}
+
+.loading-step.completed {
+  border-left-color: #22c55e;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.step-icon {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.step-content {
+  flex: 1;
+  text-align: left;
+}
+
+.step-title {
+  font-weight: 600;
+  color: #333;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.step-description {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.step-check {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 24px;
+  height: 24px;
+  background: #22c55e;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  animation: checkmark 0.3s ease;
+}
+
+@keyframes checkmark {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.loading-step:nth-child(1) {
+  animation-delay: 0.2s;
+}
+
+.loading-step:nth-child(2) {
+  animation-delay: 0.4s;
+}
+
+.loading-step:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes fadeInStep {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.loading-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #667eea;
+  animation: bounce 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
 }
 
 .results-header {

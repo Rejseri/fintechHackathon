@@ -10,6 +10,7 @@ function CompanySearchPopup({ onClose, onAddCompany }) {
   const [isAdding, setIsAdding] = useState(false);
   const [addingCompany, setAddingCompany] = useState(null);
   const [error, setError] = useState(null);
+  const [currentStep, setCurrentStep] = useState(0);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -37,20 +38,37 @@ function CompanySearchPopup({ onClose, onAddCompany }) {
     setIsAdding(true);
     setAddingCompany(company.name);
     setError(null);
+    setCurrentStep(0);
+    
+    // Start step progression simulation
+    const stepInterval = setInterval(() => {
+      setCurrentStep(prev => {
+        if (prev < 1) return prev + 1; // Steps 0 and 1
+        return prev;
+      });
+    }, 10000); // Change step every 10 seconds as approximation
     
     try {
       // Call the backend API to add the company
       // Ticker is optional - backend will generate if not provided
       const result = await addCompany(company.name, company.ticker || null);
       
-      // Success - notify parent and close
-      onAddCompany(result);
-      onClose();
+      // Clear interval and mark all steps complete
+      clearInterval(stepInterval);
+      setCurrentStep(2); // All steps complete
+      
+      // Small delay to show completion, then close
+      setTimeout(() => {
+        onAddCompany(result);
+        onClose();
+      }, 500);
     } catch (err) {
       console.error('Error adding company:', err);
+      clearInterval(stepInterval);
       setError(err.message || 'Failed to add company. Please try again.');
       setIsAdding(false);
       setAddingCompany(null);
+      setCurrentStep(0);
     }
   };
 
@@ -63,19 +81,36 @@ function CompanySearchPopup({ onClose, onAddCompany }) {
     setIsAdding(true);
     setAddingCompany(searchTerm.trim());
     setError(null);
+    setCurrentStep(0);
+    
+    // Start step progression simulation
+    const stepInterval = setInterval(() => {
+      setCurrentStep(prev => {
+        if (prev < 1) return prev + 1; // Steps 0 and 1
+        return prev;
+      });
+    }, 10000); // Change step every 10 seconds as approximation
     
     try {
       // Call the backend API to add the company
       const result = await addCompany(searchTerm.trim());
       
-      // Success - notify parent and close
-      onAddCompany(result);
-      onClose();
+      // Clear interval and mark all steps complete
+      clearInterval(stepInterval);
+      setCurrentStep(2); // All steps complete
+      
+      // Small delay to show completion, then close
+      setTimeout(() => {
+        onAddCompany(result);
+        onClose();
+      }, 500);
     } catch (err) {
       console.error('Error adding company:', err);
+      clearInterval(stepInterval);
       setError(err.message || 'Failed to add company. Please try again.');
       setIsAdding(false);
       setAddingCompany(null);
+      setCurrentStep(0);
     }
   };
 
@@ -124,12 +159,42 @@ function CompanySearchPopup({ onClose, onAddCompany }) {
 
         {isAdding && (
           <div className="adding-status">
-            <div className="loading-spinner-large">⏳</div>
-            <p>Adding {addingCompany}...</p>
-            <p className="status-detail">
-              Finding ESG report and downloading PDF.
-              Analysis will run automatically when you view the company.
-            </p>
+            <div className="emoji-loader-container">
+              <div className="emoji-loader">⏳</div>
+            </div>
+            <h2>Adding {addingCompany}</h2>
+            <p className="loading-subtitle">This may take a minute...</p>
+            <div className="loading-steps">
+              <div className={`loading-step ${currentStep >= 0 ? 'active' : ''} ${currentStep > 0 ? 'completed' : ''}`}>
+                <div className="step-icon">🔍</div>
+                <div className="step-content">
+                  <div className="step-title">Finding ESG Report</div>
+                  <div className="step-description">Searching for the latest sustainability report</div>
+                </div>
+                {currentStep > 0 && <div className="step-check">✓</div>}
+              </div>
+              <div className={`loading-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+                <div className="step-icon">📥</div>
+                <div className="step-content">
+                  <div className="step-title">Downloading PDF</div>
+                  <div className="step-description">Saving ESG report to data folder</div>
+                </div>
+                {currentStep > 1 && <div className="step-check">✓</div>}
+              </div>
+              <div className={`loading-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
+                <div className="step-icon">✅</div>
+                <div className="step-content">
+                  <div className="step-title">Company Added</div>
+                  <div className="step-description">Ready for ESG analysis</div>
+                </div>
+                {currentStep > 2 && <div className="step-check">✓</div>}
+              </div>
+            </div>
+            <div className="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
           </div>
         )}
         
