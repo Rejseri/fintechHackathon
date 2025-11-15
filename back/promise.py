@@ -1,5 +1,5 @@
 import os
-import fitz
+import pypdfium2 as pdfium
 from pathlib import Path
 import openai as oai
 
@@ -13,10 +13,9 @@ def read_pdf_from_directory(pdf_name: str) -> str:
 		raise FileNotFoundError(f"PDF not found in directory: {pdf_path}")
 
 	text = ""
-	doc = fitz.open(pdf_path)
-	for page in doc:
-		text += page.get_text()
-	doc.close()
+	with pdfium.PdfDocument(pdf_path) as doc:
+		for page in doc:
+			text += page.get_textpage().get_text_range()
 
 	return text
 
