@@ -107,6 +107,8 @@ def find_promises(esg_report_text: str, json_template: Dict[str, Any]) -> Dict[s
 	
 	# Limit text to avoid token limits
 	limited_text = esg_report_text[:50000]
+	print(f"  ESG report text length: {len(esg_report_text)} chars (using first {len(limited_text)} chars)")
+	print(f"  Extracting {len(ALL_RAW_PARAMS)} raw parameters from ESG report...")
 	
 	# Create a prompt to extract only raw parameters
 	prompt = f"""Analyze the following ESG report and extract specific promises, commitments, and claims for ONLY the following raw parameters.
@@ -132,27 +134,34 @@ Return a JSON object where each key is one of the raw parameters above, and the 
 Return ONLY valid JSON, no additional text."""
 
 	try:
+		print("  Calling OpenAI API to extract promises...")
 		response = client.chat.completions.create(
-			model="gpt-4o",
+			model="gpt-5-nano",
 			messages=[
 				{"role": "system", "content": "You are an expert ESG analyst. Extract only raw parameters from ESG reports. Do not extract derived metrics. Return only valid JSON."},
 				{"role": "user", "content": prompt}
 			],
 			response_format={"type": "json_object"},
-			temperature=0.3
 		)
+		print("  OpenAI API response received")
 		
 		extracted_promises = json.loads(response.choices[0].message.content)
+		print(f"  Extracted {len(extracted_promises)} parameter values from API response")
 		
 		# Update only raw parameters in the promise field
+		promises_found = 0
 		for key in ALL_RAW_PARAMS:
 			if key in extracted_promises and extracted_promises[key] is not None:
 				result["promise"][key] = extracted_promises[key]
+				promises_found += 1
 		
+		print(f"  Successfully extracted {promises_found} raw parameter promises")
 		return result
 		
 	except Exception as e:
-		print(f"Error extracting promises: {e}")
+		print(f"  ERROR extracting promises: {e}")
+		import traceback
+		traceback.print_exc()
 		return result
 
 
@@ -187,7 +196,10 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 	production_volume = get_numeric("production_volume", 1.0)
 	operating_countries = get_numeric("operating_countries", 1.0)
 	
+	print(f"  Common values: revenue={revenue}, employees={employees}, operating_sites={operating_sites}, production_volume={production_volume}, operating_countries={operating_countries}")
+	
 	# Calculate Environmental derived metrics
+	print("  Calculating Environmental derived metrics...")
 	try:
 		env_params = EnvironmentalParameters(
 			environmental_fines=get_numeric("environmental_fines"),
@@ -243,10 +255,16 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 		if operating_sites > 0:
 			promise_dict["active_environmental_lawsuits_per_site"] = env_params.active_lawsuits / operating_sites
 		
+		env_metrics_count = sum(1 for k in promise_dict.keys() if k.startswith(("environmental_", "violations_", "emissions_", "energy_", "water_", "spill_", "active_environmental_")))
+		print(f"  Calculated {env_metrics_count} Environmental derived metrics")
+		
 	except Exception as e:
-		print(f"Error calculating environmental metrics: {e}")
+		print(f"  ERROR calculating environmental metrics: {e}")
+		import traceback
+		traceback.print_exc()
 	
 	# Calculate Social derived metrics
+	print("  Calculating Social derived metrics...")
 	try:
 		social_params = SocialParameters(
 			fatalities=get_numeric("fatalities"),
@@ -271,10 +289,16 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 		promise_dict["gender_representation_gap_(female_workforce_%_-_female_executive_%)"] = social_params.gender_representation_gap()
 		promise_dict["retention_stability_index_(inverse_turnover)"] = social_params.retention_stability_index()
 		
+		social_metrics_count = sum(1 for k in promise_dict.keys() if any(k.startswith(prefix) for prefix in ["fatalities_", "strikes_", "total_recordable_", "employee_engagement_", "gender_representation_", "retention_stability_"]))
+		print(f"  Calculated {social_metrics_count} Social derived metrics")
+		
 	except Exception as e:
-		print(f"Error calculating social metrics: {e}")
+		print(f"  ERROR calculating social metrics: {e}")
+		import traceback
+		traceback.print_exc()
 	
 	# Calculate Governance derived metrics
+	print("  Calculating Governance derived metrics...")
 	try:
 		# Note: num_lawsuits might need to be extracted or derived from other data
 		num_lawsuits = get_numeric("major_shareholder_lawsuits", 0)  # Using as proxy if not available
@@ -309,10 +333,17 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 		promise_dict["independent_directors_ratio"] = gov_params.independent_directors_ratio()
 		promise_dict["executive_stability_index_(inverse_of_turnover)"] = gov_params.executive_stability_index()
 		
+		gov_metrics_count = sum(1 for k in promise_dict.keys() if any(k.startswith(prefix) for prefix in ["lawsuits_", "regulatory_", "corruption_", "anti-competitive_", "political_", "independent_directors_", "executive_stability_"]))
+		print(f"  Calculated {gov_metrics_count} Governance derived metrics")
+		
 	except Exception as e:
-		print(f"Error calculating governance metrics: {e}")
+		print(f"  ERROR calculating governance metrics: {e}")
+		import traceback
+		traceback.print_exc()
 	
 	result["promise"] = promise_dict
+	total_derived = len([k for k in promise_dict.keys() if k not in ALL_RAW_PARAMS])
+	print(f"  Total derived metrics calculated: {total_derived}")
 	return result
 
 
@@ -334,6 +365,8 @@ def validate_claim_with_web_search(claim: str, company_name: str, metric_name: s
 	"""
 	if not claim or claim == "null" or str(claim).strip() == "":
 		return False
+	
+	print(f"    Validating claim for '{metric_name}': {claim[:100]}...")
 	
 	# Use OpenAI to search and validate the claim
 	validation_prompt = f"""You are an ESG fact-checker. Validate the following claim made by {company_name}:
@@ -366,20 +399,22 @@ Return ONLY valid JSON."""
 		# Using chat completions with GPT-4o
 		# For production, consider using Assistants API with web search tool enabled
 		response = client.chat.completions.create(
-			model="gpt-4o",
+			model="gpt-5-nano",
 			messages=[
 				{"role": "system", "content": "You are an ESG fact-checker with access to current information. Validate ESG claims based on factual evidence. Be conservative - if evidence is unclear, mark as false."},
 				{"role": "user", "content": validation_prompt}
 			],
 			response_format={"type": "json_object"},
-			temperature=0.2
 		)
 		
 		validation_result = json.loads(response.choices[0].message.content)
-		return validation_result.get("validated", False)
+		is_valid = validation_result.get("validated", False)
+		reasoning = validation_result.get("reasoning", "No reasoning provided")
+		print(f"      Result: {'✓ VALID' if is_valid else '✗ INVALID'} - {reasoning[:80]}")
+		return is_valid
 		
 	except Exception as e:
-		print(f"Error validating claim '{claim}': {e}")
+		print(f"      ERROR validating claim: {e}")
 		return False
 
 
@@ -402,13 +437,19 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	if not company_name:
 		company_name = json_template.get("name", "Unknown Company")
 	
+	print(f"  Validating claims for company: {company_name}")
+	
 	# Get promises and truth keys
 	promise_dict = json_template.get("promise", {})
 	truth_dict = result.get("truth", {})
 	
 	# Step 1: Validate only raw parameters
+	print(f"  Step 1: Validating {len(ALL_RAW_PARAMS)} raw parameters...")
 	raw_truth = {}
-	for param_name in ALL_RAW_PARAMS:
+	params_to_validate = [p for p in ALL_RAW_PARAMS if p in promise_dict and promise_dict[p] is not None and promise_dict[p] != ""]
+	print(f"    Found {len(params_to_validate)} parameters with promises to validate")
+	
+	for i, param_name in enumerate(ALL_RAW_PARAMS, 1):
 		if param_name in promise_dict:
 			promise_value = promise_dict[param_name]
 			if promise_value is None or promise_value == "":
@@ -418,14 +459,20 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 				# Convert promise to string for validation
 				claim = str(promise_value)
 				# Validate the claim
+				print(f"    [{i}/{len(ALL_RAW_PARAMS)}] Validating: {param_name}")
 				is_valid = validate_claim_with_web_search(claim, company_name, param_name)
 				raw_truth[param_name] = is_valid
 		else:
 			raw_truth[param_name] = False
 	
+	validated_count = sum(1 for v in raw_truth.values() if v)
+	print(f"  Validation complete: {validated_count}/{len(ALL_RAW_PARAMS)} raw parameters validated as TRUE")
+	
 	# Step 2: Propagate truth to derived metrics
 	# For derived metrics, if all underlying raw parameters are true, the derived metric is true
 	# (assuming the calculation itself is correct)
+	
+	print(f"  Step 2: Propagating truth to derived metrics...")
 	
 	# Map derived metrics to their raw parameter dependencies
 	derived_dependencies = {
@@ -472,6 +519,8 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	}
 	
 	# Set truth for all metrics
+	derived_count = 0
+	derived_true_count = 0
 	for metric_name in promise_dict.keys():
 		if metric_name in ALL_RAW_PARAMS:
 			# Raw parameter - use validated truth
@@ -479,10 +528,16 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 		elif metric_name in derived_dependencies:
 			# Derived metric - true if all dependencies are true
 			deps = derived_dependencies[metric_name]
-			truth_dict[metric_name] = all(raw_truth.get(dep, False) for dep in deps)
+			is_true = all(raw_truth.get(dep, False) for dep in deps)
+			truth_dict[metric_name] = is_true
+			derived_count += 1
+			if is_true:
+				derived_true_count += 1
 		else:
 			# Unknown metric - default to false
 			truth_dict[metric_name] = False
+	
+	print(f"  Propagated truth to {derived_count} derived metrics ({derived_true_count} validated as TRUE)")
 	
 	result["truth"] = truth_dict
 	return result
@@ -505,17 +560,32 @@ def process_esg_report(esg_report_text: str, json_template: Dict[str, Any]) -> D
 		- promise: raw parameters (extracted) + derived metrics (calculated)
 		- truth: true/false for all metrics (raw validated, derived propagated)
 	"""
+	company_name = json_template.get("name", "Unknown Company")
+	print(f"\n{'='*60}")
+	print(f"Processing ESG report for: {company_name}")
+	print(f"{'='*60}")
+	
 	# Step 1: Extract only raw parameter promises from ESG report
-	print("Extracting raw parameter promises from ESG report...")
+	print("\n[STEP 1/3] Extracting raw parameter promises from ESG report...")
 	result = find_promises(esg_report_text, json_template)
 	
 	# Step 2: Calculate derived metrics using paramcalculator
-	print("Calculating derived metrics using paramcalculator...")
+	print("\n[STEP 2/3] Calculating derived metrics using paramcalculator...")
 	raw_params = {k: v for k, v in result.get("promise", {}).items() if k in ALL_RAW_PARAMS}
+	print(f"  Found {len(raw_params)} raw parameters with values")
 	result = calculate_derived_metrics(raw_params, result)
 	
 	# Step 3: Validate raw parameters and propagate truth to derived metrics
-	print("Validating raw parameters with web search...")
+	print("\n[STEP 3/3] Validating raw parameters with web search...")
 	result = find_truths(esg_report_text, result)
+	
+	# Summary
+	total_promises = len([v for v in result.get("promise", {}).values() if v is not None])
+	total_truths = sum(1 for v in result.get("truth", {}).values() if v)
+	print(f"\n{'='*60}")
+	print(f"Analysis complete for {company_name}")
+	print(f"  Total promises extracted: {total_promises}")
+	print(f"  Total metrics validated as TRUE: {total_truths}")
+	print(f"{'='*60}\n")
 	
 	return result
