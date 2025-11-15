@@ -6,25 +6,65 @@ function CardPopup({ ticker, onClose }) {
   const [companyData, setCompanyData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
+    let stepInterval = null;
+    let isMounted = true;
+    
     const loadCompanyData = async () => {
       if (!ticker) return;
       
       try {
         setLoading(true);
         setError(null);
+        setCurrentStep(0);
+        
+        // Simulate step progression (this will be approximate since we can't track backend progress)
+        stepInterval = setInterval(() => {
+          if (isMounted) {
+            setCurrentStep(prev => {
+              if (prev < 2) return prev + 1;
+              return prev;
+            });
+          }
+        }, 15000); // Change step every 15 seconds as approximation
+        
         const data = await fetchCompanyData(ticker);
-        setCompanyData(data);
+        if (stepInterval) {
+          clearInterval(stepInterval);
+          stepInterval = null;
+        }
+        if (isMounted) {
+          setCurrentStep(3); // All steps complete
+          setCompanyData(data);
+        }
       } catch (err) {
         console.error('Error loading company data:', err);
-        setError(err.message || 'Failed to load company data');
+        if (isMounted) {
+          setError(err.message || 'Failed to load company data');
+        }
       } finally {
-        setLoading(false);
+        if (stepInterval) {
+          clearInterval(stepInterval);
+          stepInterval = null;
+        }
+        if (isMounted) {
+          setLoading(false);
+          setCurrentStep(0);
+        }
       }
     };
 
     loadCompanyData();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (stepInterval) {
+        clearInterval(stepInterval);
+      }
+    };
   }, [ticker]);
 
   const handleOverlayClick = (e) => {
@@ -69,7 +109,42 @@ function CardPopup({ ticker, onClose }) {
         
         {loading ? (
           <div className="popup-loading">
-            <h2>Loading company data...</h2>
+            <div className="loading-spinner-container">
+              <div className="loading-spinner"></div>
+            </div>
+            <h2>Analyzing ESG Report</h2>
+            <p className="loading-subtitle">This may take a minute...</p>
+            <div className="loading-steps">
+              <div className={`loading-step ${currentStep >= 0 ? 'active' : ''} ${currentStep > 0 ? 'completed' : ''}`}>
+                <div className="step-icon">📄</div>
+                <div className="step-content">
+                  <div className="step-title">Extracting Promises</div>
+                  <div className="step-description">Reading ESG report and identifying commitments</div>
+                </div>
+                {currentStep > 0 && <div className="step-check">✓</div>}
+              </div>
+              <div className={`loading-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+                <div className="step-icon">📊</div>
+                <div className="step-content">
+                  <div className="step-title">Calculating Metrics</div>
+                  <div className="step-description">Computing derived ESG metrics</div>
+                </div>
+                {currentStep > 1 && <div className="step-check">✓</div>}
+              </div>
+              <div className={`loading-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
+                <div className="step-icon">🔍</div>
+                <div className="step-content">
+                  <div className="step-title">Validating Claims</div>
+                  <div className="step-description">Verifying promises against public data</div>
+                </div>
+                {currentStep > 2 && <div className="step-check">✓</div>}
+              </div>
+            </div>
+            <div className="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
           </div>
         ) : error ? (
           <div className="popup-error">

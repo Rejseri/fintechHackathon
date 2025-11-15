@@ -6,8 +6,8 @@
       "environmental_fines": null,
       "number_of_environmental_violations": null,
       "number_of_spills_or_toxic_release_events": null,
-      "ghg_emissions_directly_associated": null,
-      "ghg_emission_scope_1": null,
+      "ghg_emissions_directly_associated": "Science-based target to reduce carbon emissions across the value chain by 50% by 2030 (baseline 2018).",
+      "ghg_emission_scope_1": "Scope 1 and 2 carbon footprint reductions: 41% reduction versus 2018 baseline; target 50% by 2030.",
       "energy_consumption": null,
       "water_usage": null,
       "active_environmental_lawsuits": null,
@@ -62,7 +62,7 @@
       "operational_incident_density": null,
       "emissions_compliance_gap": null,
       "fatalities": null,
-      "worker_injury_rate": "Ashington site never recorded a lost time injury in 12 years.",
+      "worker_injury_rate": null,
       "number_of_strikes": null,
       "contractor_incident_rate": null,
       "glassdoor_average_rating": null,
@@ -129,7 +129,7 @@
       "environmental_fines": false,
       "number_of_environmental_violations": false,
       "number_of_spills_or_toxic_release_events": false,
-      "ghg_emissions_directly_associated": false,
+      "ghg_emissions_directly_associated": true,
       "ghg_emission_scope_1": false,
       "energy_consumption": false,
       "water_usage": false,
@@ -246,7 +246,7 @@
       "major_shareholder_lawsuits_per_billion_revenue": false,
       "revenue": false,
       "employees": false,
-      "operating_countries": false
+      "operating_countries": true
     },
     "sources": [],
     "scanned": true
