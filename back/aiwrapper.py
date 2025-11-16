@@ -285,6 +285,11 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 	result = copy.deepcopy(json_template)
 	promise_dict = result.get("promise", {})
 	
+	# Helper function to check if a value actually exists (not None)
+	def value_exists(key: str) -> bool:
+		value = raw_params.get(key, promise_dict.get(key, None))
+		return value is not None and value != ""
+	
 	# Helper function to get numeric value or default
 	def get_numeric(key: str, default: float = 0.0) -> float:
 		value = raw_params.get(key, promise_dict.get(key, default))
@@ -324,41 +329,56 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 		)
 		
 		# Calculate and store derived environmental metrics
-		if revenue > 0:
-			promise_dict["environmental_fines_per_revenue"] = env_params.fines_per_revenue()
-			promise_dict["violations_per_revenue"] = env_params.violations_per_revenue()
-			promise_dict["emissions_intensity_(scope_1_per_revenue)"] = env_params.emissions_intensity()
-			promise_dict["energy_intensity_(energy_per_revenue)"] = env_params.energy_intensity()
-			promise_dict["water_intensity_(water_per_revenue)"] = env_params.water_intensity()
+		# Only store if required raw parameters exist (not None/null)
+		if revenue > 0 and value_exists("revenue"):
+			if value_exists("environmental_fines"):
+				promise_dict["environmental_fines_per_revenue"] = env_params.fines_per_revenue()
+			if value_exists("number_of_environmental_violations"):
+				promise_dict["violations_per_revenue"] = env_params.violations_per_revenue()
+			if value_exists("ghg_emission_scope_1"):
+				promise_dict["emissions_intensity_(scope_1_per_revenue)"] = env_params.emissions_intensity()
+			if value_exists("energy_consumption"):
+				promise_dict["energy_intensity_(energy_per_revenue)"] = env_params.energy_intensity()
+			if value_exists("water_usage"):
+				promise_dict["water_intensity_(water_per_revenue)"] = env_params.water_intensity()
 		
-		if operating_sites > 0:
-			promise_dict["environmental_fines_per_operating_site"] = env_params.fines_per_operating_site()
-			promise_dict["violations_per_operating_site"] = env_params.violations_per_operating_site()
+		if operating_sites > 0 and value_exists("operating_sites"):
+			if value_exists("environmental_fines"):
+				promise_dict["environmental_fines_per_operating_site"] = env_params.fines_per_operating_site()
+			if value_exists("number_of_environmental_violations"):
+				promise_dict["violations_per_operating_site"] = env_params.violations_per_operating_site()
 		
-		if production_volume > 0:
-			promise_dict["violations_per_production_volume"] = env_params.violations_per_production_volume()
-			promise_dict["emissions_intensity_(scope_1_per_production_volume)"] = env_params.ghg_emissions_scope1 / production_volume
-			promise_dict["energy_intensity_(energy_per_production_volume)"] = env_params.energy_consumption / production_volume
-			promise_dict["water_intensity_(water_per_production_volume)"] = env_params.water_intensity() * revenue / production_volume
-			promise_dict["spill_frequency_per_production_unit"] = env_params.spill_frequency_per_unit()
+		if production_volume > 0 and value_exists("production_volume"):
+			if value_exists("number_of_environmental_violations"):
+				promise_dict["violations_per_production_volume"] = env_params.violations_per_production_volume()
+			if value_exists("ghg_emission_scope_1"):
+				promise_dict["emissions_intensity_(scope_1_per_production_volume)"] = env_params.ghg_emissions_scope1 / production_volume
+			if value_exists("energy_consumption"):
+				promise_dict["energy_intensity_(energy_per_production_volume)"] = env_params.energy_consumption / production_volume
+			if value_exists("water_usage") and value_exists("revenue"):
+				promise_dict["water_intensity_(water_per_production_volume)"] = env_params.water_intensity() * revenue / production_volume
+			if value_exists("number_of_spills_or_toxic_release_events"):
+				promise_dict["spill_frequency_per_production_unit"] = env_params.spill_frequency_per_unit()
 		
-		if employees > 0:
-			promise_dict["emissions_per_employee"] = env_params.emissions_per_employee()
-			promise_dict["water_use_per_employee"] = env_params.water_per_employee()
+		if employees > 0 and value_exists("employees"):
+			if value_exists("ghg_emission_scope_1"):
+				promise_dict["emissions_per_employee"] = env_params.emissions_per_employee()
+			if value_exists("water_usage"):
+				promise_dict["water_use_per_employee"] = env_params.water_per_employee()
 		
-		if env_params.energy_consumption > 0:
+		if env_params.energy_consumption > 0 and value_exists("energy_consumption") and value_exists("revenue"):
 			promise_dict["energy_efficiency_ratio_(revenue_per_energy_consumed)"] = env_params.energy_efficiency_ratio()
 		
-		if env_params.ghg_emissions_scope1 > 0:
+		if env_params.ghg_emissions_scope1 > 0 and value_exists("ghg_emission_scope_1") and value_exists("revenue"):
 			promise_dict["carbon_efficiency_ratio_(revenue_per_ton_$co_{2}$)"] = env_params.carbon_efficiency_ratio()
 		
-		if operating_sites > 0:
+		if operating_sites > 0 and value_exists("operating_sites") and value_exists("number_of_spills_or_toxic_release_events"):
 			promise_dict["spill_frequency_per_site"] = env_params.num_spills / operating_sites
 		
-		if revenue > 0:
+		if revenue > 0 and value_exists("revenue") and value_exists("active_environmental_lawsuits"):
 			promise_dict["active_environmental_lawsuits_per_revenue"] = env_params.active_lawsuits / revenue
 		
-		if operating_sites > 0:
+		if operating_sites > 0 and value_exists("operating_sites") and value_exists("active_environmental_lawsuits"):
 			promise_dict["active_environmental_lawsuits_per_site"] = env_params.active_lawsuits / operating_sites
 		
 		env_metrics_count = sum(1 for k in promise_dict.keys() if k.startswith(("environmental_", "violations_", "emissions_", "energy_", "water_", "spill_", "active_environmental_")))
@@ -386,14 +406,21 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 		)
 		
 		# Calculate and store derived social metrics
-		if employees > 0:
-			promise_dict["fatalities_per_1,000_employees"] = social_params.fatalities_per_1000_employees()
-			promise_dict["strikes_per_1,000_employees"] = social_params.strikes_per_1000_employees()
+		# Only store if required raw parameters exist (not None/null)
+		if employees > 0 and value_exists("employees"):
+			if value_exists("fatalities"):
+				promise_dict["fatalities_per_1,000_employees"] = social_params.fatalities_per_1000_employees()
+			if value_exists("number_of_strikes"):
+				promise_dict["strikes_per_1,000_employees"] = social_params.strikes_per_1000_employees()
 		
-		promise_dict["total_recordable_incident_rate_(trir)"] = social_params.total_recordable_incident_rate()
-		promise_dict["employee_engagement_proxy_(glassdoor_rating_ceo_approval)"] = social_params.employee_engagement_proxy()
-		promise_dict["gender_representation_gap_(female_workforce_%_-_female_executive_%)"] = social_params.gender_representation_gap()
-		promise_dict["retention_stability_index_(inverse_turnover)"] = social_params.retention_stability_index()
+		if value_exists("contractor_incident_rate"):
+			promise_dict["total_recordable_incident_rate_(trir)"] = social_params.total_recordable_incident_rate()
+		if value_exists("glassdoor_average_rating") and value_exists("glassdoor_ceo_approval"):
+			promise_dict["employee_engagement_proxy_(glassdoor_rating_ceo_approval)"] = social_params.employee_engagement_proxy()
+		if value_exists("female_workforce_%") and value_exists("female_executive_%"):
+			promise_dict["gender_representation_gap_(female_workforce_%_-_female_executive_%)"] = social_params.gender_representation_gap()
+		if value_exists("employee_turnover_%"):
+			promise_dict["retention_stability_index_(inverse_turnover)"] = social_params.retention_stability_index()
 		
 		social_metrics_count = sum(1 for k in promise_dict.keys() if any(k.startswith(prefix) for prefix in ["fatalities_", "strikes_", "total_recordable_", "employee_engagement_", "gender_representation_", "retention_stability_"]))
 		print(f"  Calculated {social_metrics_count} Social derived metrics")
@@ -424,20 +451,31 @@ def calculate_derived_metrics(raw_params: Dict[str, Any], json_template: Dict[st
 		)
 		
 		# Calculate and store derived governance metrics
-		if revenue > 0:
-			promise_dict["lawsuits_per_revenue"] = gov_params.lawsuits_per_revenue()
-			promise_dict["regulatory_investigations_per_revenue"] = gov_params.regulatory_investigations_per_revenue()
-			promise_dict["corruption_cases_per_billion_revenue"] = gov_params.corruption_cases_per_billion_revenue()
-			promise_dict["anti-competitive_fines_per_revenue"] = gov_params.anti_competitive_fines_per_revenue()
-			promise_dict["political_donations_per_revenue"] = gov_params.political_donations_per_revenue()
-			promise_dict["major_shareholder_lawsuits_per_billion_revenue"] = gov_params.major_shareholder_lawsuits_per_billion_revenue()
+		# Only store if required raw parameters exist (not None/null)
+		if revenue > 0 and value_exists("revenue"):
+			if value_exists("major_shareholder_lawsuits"):
+				promise_dict["lawsuits_per_revenue"] = gov_params.lawsuits_per_revenue()
+			if value_exists("regulatory_investigations"):
+				promise_dict["regulatory_investigations_per_revenue"] = gov_params.regulatory_investigations_per_revenue()
+			if value_exists("corruptions/bribery_cases"):
+				promise_dict["corruption_cases_per_billion_revenue"] = gov_params.corruption_cases_per_billion_revenue()
+			if value_exists("anti_competitive_behavior_fines"):
+				promise_dict["anti-competitive_fines_per_revenue"] = gov_params.anti_competitive_fines_per_revenue()
+			if value_exists("political_donations"):
+				promise_dict["political_donations_per_revenue"] = gov_params.political_donations_per_revenue()
+			if value_exists("major_shareholder_lawsuits"):
+				promise_dict["major_shareholder_lawsuits_per_billion_revenue"] = gov_params.major_shareholder_lawsuits_per_billion_revenue()
 		
-		if operating_countries > 0:
-			promise_dict["lawsuits_per_operating_country"] = gov_params.lawsuits_per_operating_country()
-			promise_dict["anti-competitive_violations_per_operating_country"] = gov_params.anti_competitive_violations_per_country()
+		if operating_countries > 0 and value_exists("operating_countries"):
+			if value_exists("major_shareholder_lawsuits"):
+				promise_dict["lawsuits_per_operating_country"] = gov_params.lawsuits_per_operating_country()
+			if value_exists("anti_competitive_behavior_fines"):
+				promise_dict["anti-competitive_violations_per_operating_country"] = gov_params.anti_competitive_violations_per_country()
 		
-		promise_dict["independent_directors_ratio"] = gov_params.independent_directors_ratio()
-		promise_dict["executive_stability_index_(inverse_of_turnover)"] = gov_params.executive_stability_index()
+		if value_exists("board_independence_%"):
+			promise_dict["independent_directors_ratio"] = gov_params.independent_directors_ratio()
+		if value_exists("c-suit_turnover_rate"):
+			promise_dict["executive_stability_index_(inverse_of_turnover)"] = gov_params.executive_stability_index()
 		
 		gov_metrics_count = sum(1 for k in promise_dict.keys() if any(k.startswith(prefix) for prefix in ["lawsuits_", "regulatory_", "corruption_", "anti-competitive_", "political_", "independent_directors_", "executive_stability_"]))
 		print(f"  Calculated {gov_metrics_count} Governance derived metrics")
@@ -681,7 +719,12 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 		if param_name in promise_dict:
 			promise_value = promise_dict[param_name]
 			# Only include parameters that were actually found in the report
+			# Exclude None, empty strings, and 0 values (0 might be from None/null conversion)
+			# Note: We check if value is 0 AND if it's a number, to avoid filtering legitimate 0 values
+			# But since we now prevent 0 from None in calculate_derived_metrics, this is mainly for legacy data
 			if promise_value is not None and promise_value != "":
+				# For numeric values, check if it's 0 - if so, it might be from None/null conversion
+				# We'll still validate it, but the real fix is in calculate_derived_metrics
 				params_to_validate.append(param_name)
 	
 	print(f"  Step 1: Validating {len(params_to_validate)} parameters found in ESG report (out of {len(ALL_RAW_PARAMS)} total)...")

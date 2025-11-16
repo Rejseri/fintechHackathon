@@ -76,6 +76,16 @@ function CardPopup({ ticker, onClose }) {
 
   if (!ticker) return null;
 
+  // Basic operational parameters that should be excluded from dashboard display
+  // These are only used for calculations, not displayed
+  const BASIC_PARAMS_EXCLUDED_FROM_DISPLAY = [
+    "revenue",
+    "operating_sites",
+    "employees",
+    "production_volume",
+    "operating_countries"
+  ];
+
   // Check if a value is a scalar (number)
   const isScalar = (value) => {
     if (value === null || value === undefined) return false;
@@ -105,13 +115,31 @@ function CardPopup({ ticker, onClose }) {
   const getSampleMetrics = () => {
     if (!companyData?.promise) return {};
     const metricUnits = companyData.metric_units || {};
+    const truth = companyData.truth || {};
+    const metricSources = companyData.metric_sources || {};
     const entries = Object.entries(companyData.promise)
       .filter(([key, value]) => {
+        // Filter out basic operational parameters (only used for calculations)
+        if (BASIC_PARAMS_EXCLUDED_FROM_DISPLAY.includes(key)) return false;
+        
         // Filter out metrics with N/A values (null, undefined, or formatted as 'N/A')
         if (value === null || value === undefined) return false;
         const unit = metricUnits[key] || "";
         const formatted = formatMetricValue(value, unit);
-        return formatted !== 'N/A';
+        if (formatted === 'N/A') return false;
+        
+        // Filter out 0 values that likely represent missing data
+        // (0 value, not verified, and no sources = likely from None/null conversion)
+        if (typeof value === 'number' && value === 0) {
+          const isVerified = truth[key] === true;
+          const sources = metricSources[key] || [];
+          // If it's 0, not verified, and has no sources, it's likely missing data
+          if (!isVerified && sources.length === 0) {
+            return false;
+          }
+        }
+        
+        return true;
       })
       .slice(0, 10);
     return Object.fromEntries(entries);
@@ -121,13 +149,31 @@ function CardPopup({ ticker, onClose }) {
   const getFormattedPromises = () => {
     if (!companyData?.promise) return [];
     const metricUnits = companyData.metric_units || {};
+    const truth = companyData.truth || {};
+    const metricSources = companyData.metric_sources || {};
     return Object.entries(companyData.promise)
       .filter(([key, value]) => {
+        // Filter out basic operational parameters (only used for calculations)
+        if (BASIC_PARAMS_EXCLUDED_FROM_DISPLAY.includes(key)) return false;
+        
         // Filter out metrics with N/A values (null, undefined, or formatted as 'N/A')
         if (value === null || value === undefined) return false;
         const unit = metricUnits[key] || "";
         const formatted = formatMetricValue(value, unit);
-        return formatted !== 'N/A';
+        if (formatted === 'N/A') return false;
+        
+        // Filter out 0 values that likely represent missing data
+        // (0 value, not verified, and no sources = likely from None/null conversion)
+        if (typeof value === 'number' && value === 0) {
+          const isVerified = truth[key] === true;
+          const sources = metricSources[key] || [];
+          // If it's 0, not verified, and has no sources, it's likely missing data
+          if (!isVerified && sources.length === 0) {
+            return false;
+          }
+        }
+        
+        return true;
       })
       .slice(0, 20)
       .map(([key, value]) => {
@@ -146,14 +192,31 @@ function CardPopup({ ticker, onClose }) {
     if (!companyData?.truth) return [];
     const promises = companyData.promise || {};
     const metricUnits = companyData.metric_units || {};
+    const metricSources = companyData.metric_sources || {};
     return Object.entries(companyData.truth)
       .filter(([key, value]) => {
+        // Filter out basic operational parameters (only used for calculations)
+        if (BASIC_PARAMS_EXCLUDED_FROM_DISPLAY.includes(key)) return false;
+        
         // Filter out metrics where the corresponding promise value is N/A
         const promiseValue = promises[key];
         if (promiseValue === null || promiseValue === undefined) return false;
         const unit = metricUnits[key] || "";
         const formatted = formatMetricValue(promiseValue, unit);
-        return formatted !== 'N/A';
+        if (formatted === 'N/A') return false;
+        
+        // Filter out 0 values that likely represent missing data
+        // (0 value, not verified, and no sources = likely from None/null conversion)
+        if (typeof promiseValue === 'number' && promiseValue === 0) {
+          const isVerified = value === true;
+          const sources = metricSources[key] || [];
+          // If it's 0, not verified, and has no sources, it's likely missing data
+          if (!isVerified && sources.length === 0) {
+            return false;
+          }
+        }
+        
+        return true;
       })
       .slice(0, 20)
       .map(([key, value]) => ({
