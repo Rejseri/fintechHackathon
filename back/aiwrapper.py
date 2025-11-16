@@ -201,7 +201,7 @@ def find_promises(esg_report_text: str, json_template: Dict[str, Any]) -> Dict[s
 	result = copy.deepcopy(json_template)
 	
 	# Limit text to avoid token limits
-	limited_text = esg_report_text[:50000]
+	limited_text = esg_report_text
 	print(f"  ESG report text length: {len(esg_report_text)} chars (using first {len(limited_text)} chars)")
 	print(f"  Extracting {len(ALL_RAW_PARAMS)} raw parameters from ESG report...")
 	

@@ -34,95 +34,147 @@ class EnvironmentalParameters:
         self.employees = employees
 
     # ----------------------------
+    # Helper function to convert to scalar
+    # ----------------------------
+    @staticmethod
+    def _to_scalar(value):
+        """
+        Attempts to convert a value to a scalar (float).
+        Returns None if the value cannot be converted (e.g., string explanations).
+        Returns None if the value is None.
+        """
+        if value is None:
+            return None
+        try:
+            # Try to convert to float
+            return float(value)
+        except (ValueError, TypeError):
+            # If conversion fails (e.g., string explanation), return None
+            return None
+
+    # ----------------------------
     # Derived Parameter Calculations
     # ----------------------------
 
     def fines_per_revenue(self):
-        if self.environmental_fines is None or self.revenue is None:
+        environmental_fines = self._to_scalar(self.environmental_fines)
+        revenue = self._to_scalar(self.revenue)
+        if environmental_fines is None or revenue is None or revenue == 0:
             return None
-        return self.environmental_fines / self.revenue
+        return environmental_fines / revenue
 
     def fines_per_operating_site(self):
-        if self.environmental_fines is None or self.operating_sites is None:
+        environmental_fines = self._to_scalar(self.environmental_fines)
+        operating_sites = self._to_scalar(self.operating_sites)
+        if environmental_fines is None or operating_sites is None or operating_sites == 0:
             return None
-        return self.environmental_fines / self.operating_sites
+        return environmental_fines / operating_sites
 
     def violations_per_revenue(self):
-        if self.num_violations is None or self.revenue is None:
+        num_violations = self._to_scalar(self.num_violations)
+        revenue = self._to_scalar(self.revenue)
+        if num_violations is None or revenue is None or revenue == 0:
             return None
-        return self.num_violations / self.revenue
+        return num_violations / revenue
 
     def violations_per_operating_site(self):
-        if self.num_violations is None or self.operating_sites is None:
+        num_violations = self._to_scalar(self.num_violations)
+        operating_sites = self._to_scalar(self.operating_sites)
+        if num_violations is None or operating_sites is None or operating_sites == 0:
             return None
-        return self.num_violations / self.operating_sites
+        return num_violations / operating_sites
 
     def violations_per_production_volume(self):
-        if self.num_violations is None or self.production_volume is None:
+        num_violations = self._to_scalar(self.num_violations)
+        production_volume = self._to_scalar(self.production_volume)
+        if num_violations is None or production_volume is None or production_volume == 0:
             return None
-        return self.num_violations / self.production_volume
+        return num_violations / production_volume
 
     # Growth rate helpers
     @staticmethod
     def growth_rate(previous, current):
-        if previous is None or current is None:
+        previous = EnvironmentalParameters._to_scalar(previous)
+        current = EnvironmentalParameters._to_scalar(current)
+        if previous is None or current is None or previous == 0:
             return None
         return (current - previous) / previous
 
     @staticmethod
     def cagr(start, end, years):
-        if start is None or end is None or years is None:
+        start = EnvironmentalParameters._to_scalar(start)
+        end = EnvironmentalParameters._to_scalar(end)
+        years = EnvironmentalParameters._to_scalar(years)
+        if start is None or end is None or years is None or start <= 0:
             return None
-        return (end / start) ** (1 / years) if start > 0 else None
+        return (end / start) ** (1 / years)
 
     # Emissions-based derived metrics
     def emissions_intensity(self):
-        if self.ghg_emissions_scope1 is None or self.revenue is None:
+        ghg_emissions_scope1 = self._to_scalar(self.ghg_emissions_scope1)
+        revenue = self._to_scalar(self.revenue)
+        if ghg_emissions_scope1 is None or revenue is None or revenue == 0:
             return None
-        return self.ghg_emissions_scope1 / self.revenue
+        return ghg_emissions_scope1 / revenue
 
     def emissions_per_employee(self):
-        if self.ghg_emissions_scope1 is None or self.employees is None:
+        ghg_emissions_scope1 = self._to_scalar(self.ghg_emissions_scope1)
+        employees = self._to_scalar(self.employees)
+        if ghg_emissions_scope1 is None or employees is None or employees == 0:
             return None
-        return self.ghg_emissions_scope1 / self.employees
+        return ghg_emissions_scope1 / employees
 
     # Energy-related derived metrics
     def energy_intensity(self):
-        if self.energy_consumption is None or self.revenue is None:
+        energy_consumption = self._to_scalar(self.energy_consumption)
+        revenue = self._to_scalar(self.revenue)
+        if energy_consumption is None or revenue is None or revenue == 0:
             return None
-        return self.energy_consumption / self.revenue
+        return energy_consumption / revenue
 
     def energy_efficiency_ratio(self):
-        if self.revenue is None or self.energy_consumption is None:
+        revenue = self._to_scalar(self.revenue)
+        energy_consumption = self._to_scalar(self.energy_consumption)
+        if revenue is None or energy_consumption is None or energy_consumption == 0:
             return None
-        return self.revenue / self.energy_consumption
+        return revenue / energy_consumption
 
     def carbon_efficiency_ratio(self):
-        if self.revenue is None or self.ghg_emissions_scope1 is None:
+        revenue = self._to_scalar(self.revenue)
+        ghg_emissions_scope1 = self._to_scalar(self.ghg_emissions_scope1)
+        if revenue is None or ghg_emissions_scope1 is None or ghg_emissions_scope1 == 0:
             return None
-        return self.revenue / self.ghg_emissions_scope1
+        return revenue / ghg_emissions_scope1
 
     # Water-related derived metrics
     def water_intensity(self):
-        if self.water_usage is None or self.revenue is None:
+        water_usage = self._to_scalar(self.water_usage)
+        revenue = self._to_scalar(self.revenue)
+        if water_usage is None or revenue is None or revenue == 0:
             return None
-        return self.water_usage / self.revenue
+        return water_usage / revenue
 
     def water_per_employee(self):
-        if self.water_usage is None or self.employees is None:
+        water_usage = self._to_scalar(self.water_usage)
+        employees = self._to_scalar(self.employees)
+        if water_usage is None or employees is None or employees == 0:
             return None
-        return self.water_usage / self.employees
+        return water_usage / employees
 
     # Spill-related derived metrics
     def spill_frequency_per_unit(self):
-        if self.num_spills is None or self.production_volume is None:
+        num_spills = self._to_scalar(self.num_spills)
+        production_volume = self._to_scalar(self.production_volume)
+        if num_spills is None or production_volume is None or production_volume == 0:
             return None
-        return self.num_spills / self.production_volume
+        return num_spills / production_volume
 
     # Generic year-over-year change
     @staticmethod
     def yoy_change(previous, current):
-        if previous is None or current is None:
+        previous = EnvironmentalParameters._to_scalar(previous)
+        current = EnvironmentalParameters._to_scalar(current)
+        if previous is None or current is None or previous == 0:
             return None
         return (current - previous) / previous
 
@@ -156,25 +208,51 @@ class SocialParameters:
         self.employees = employees
 
     # ----------------------------
+    # Helper function to convert to scalar
+    # ----------------------------
+    @staticmethod
+    def _to_scalar(value):
+        """
+        Attempts to convert a value to a scalar (float).
+        Returns None if the value cannot be converted (e.g., string explanations).
+        Returns None if the value is None.
+        """
+        if value is None:
+            return None
+        try:
+            # Try to convert to float
+            return float(value)
+        except (ValueError, TypeError):
+            # If conversion fails (e.g., string explanation), return None
+            return None
+
+    # ----------------------------
     # Helper functions used in many metrics
     # ----------------------------
 
     @staticmethod
     def yoy_change(previous, current):
         """Year-over-year change."""
-        if previous is None or current is None:
+        previous = SocialParameters._to_scalar(previous)
+        current = SocialParameters._to_scalar(current)
+        if previous is None or current is None or previous == 0:
             return None
-        return (current - previous) / previous if previous else None
+        return (current - previous) / previous
 
     @staticmethod
     def cagr(start, end, years=3):
         """General CAGR formula."""
-        if start is None or end is None or years is None:
+        start = SocialParameters._to_scalar(start)
+        end = SocialParameters._to_scalar(end)
+        years = SocialParameters._to_scalar(years)
+        if start is None or end is None or years is None or start <= 0:
             return None
-        return (end / start) ** (1 / years) - 1 if start > 0 else None
+        return (end / start) ** (1 / years) - 1
 
     @staticmethod
     def percentage_gap(a, b):
+        a = SocialParameters._to_scalar(a)
+        b = SocialParameters._to_scalar(b)
         if a is None or b is None:
             return None
         return a - b
@@ -184,19 +262,25 @@ class SocialParameters:
     # ----------------------------
 
     def fatalities_per_1000_employees(self):
-        if self.fatalities is None or self.employees is None:
+        fatalities = self._to_scalar(self.fatalities)
+        employees = self._to_scalar(self.employees)
+        if fatalities is None or employees is None or employees == 0:
             return None
-        return (self.fatalities / self.employees) * 1000
+        return (fatalities / employees) * 1000
 
     def fatality_rate_trend_3yr(self, fatality_rate_3yr_ago):
-        if fatality_rate_3yr_ago is None or self.fatalities is None:
+        fatality_rate_3yr_ago = self._to_scalar(fatality_rate_3yr_ago)
+        fatalities = self._to_scalar(self.fatalities)
+        if fatality_rate_3yr_ago is None or fatalities is None:
             return None
-        return self.yoy_change(fatality_rate_3yr_ago, self.fatalities)
+        return self.yoy_change(fatality_rate_3yr_ago, fatalities)
 
     def worker_injury_rate_trend_yoy(self, prev_worker_injury_rate):
-        if prev_worker_injury_rate is None or self.worker_injury_rate is None:
+        prev_worker_injury_rate = self._to_scalar(prev_worker_injury_rate)
+        worker_injury_rate = self._to_scalar(self.worker_injury_rate)
+        if prev_worker_injury_rate is None or worker_injury_rate is None:
             return None
-        return self.yoy_change(prev_worker_injury_rate, self.worker_injury_rate)
+        return self.yoy_change(prev_worker_injury_rate, worker_injury_rate)
 
     def total_recordable_incident_rate(self):
         """
@@ -204,9 +288,8 @@ class SocialParameters:
         (recordable incidents × 200,000) / total hours worked
         Here we use contractor incident rate if defined that way.
         """
-        if self.contractor_incident_rate is None:
-            return None
-        return self.contractor_incident_rate
+        contractor_incident_rate = self._to_scalar(self.contractor_incident_rate)
+        return contractor_incident_rate
 
     def serious_injury_frequency_rate(self):
         """
@@ -216,71 +299,96 @@ class SocialParameters:
         return None
 
     def strikes_per_1000_employees(self):
-        if self.num_strikes is None or self.employees is None:
+        num_strikes = self._to_scalar(self.num_strikes)
+        employees = self._to_scalar(self.employees)
+        if num_strikes is None or employees is None or employees == 0:
             return None
-        return (self.num_strikes / self.employees) * 1000
+        return (num_strikes / employees) * 1000
 
     def strike_frequency_trend_3yr(self, strikes_3yr_ago):
-        if strikes_3yr_ago is None or self.num_strikes is None:
+        strikes_3yr_ago = self._to_scalar(strikes_3yr_ago)
+        num_strikes = self._to_scalar(self.num_strikes)
+        if strikes_3yr_ago is None or num_strikes is None:
             return None
-        return self.cagr(strikes_3yr_ago, self.num_strikes, years=3)
+        return self.cagr(strikes_3yr_ago, num_strikes, years=3)
 
     def recall_growth_rate_yoy(self, prev_contractor_incident_rate):
-        if prev_contractor_incident_rate is None or self.contractor_incident_rate is None:
+        prev_contractor_incident_rate = self._to_scalar(prev_contractor_incident_rate)
+        contractor_incident_rate = self._to_scalar(self.contractor_incident_rate)
+        if prev_contractor_incident_rate is None or contractor_incident_rate is None:
             return None
-        return self.yoy_change(prev_contractor_incident_rate, self.contractor_incident_rate)
+        return self.yoy_change(prev_contractor_incident_rate, contractor_incident_rate)
 
     def glassdoor_satisfaction_trend_3yr(self, rating_3yr_ago):
-        if rating_3yr_ago is None or self.glassdoor_rating is None:
+        rating_3yr_ago = self._to_scalar(rating_3yr_ago)
+        glassdoor_rating = self._to_scalar(self.glassdoor_rating)
+        if rating_3yr_ago is None or glassdoor_rating is None:
             return None
-        return self.yoy_change(rating_3yr_ago, self.glassdoor_rating)
+        return self.yoy_change(rating_3yr_ago, glassdoor_rating)
 
     def glassdoor_ceo_approval_trend(self, prev_approval):
-        if prev_approval is None or self.glassdoor_ceo_approval is None:
+        prev_approval = self._to_scalar(prev_approval)
+        glassdoor_ceo_approval = self._to_scalar(self.glassdoor_ceo_approval)
+        if prev_approval is None or glassdoor_ceo_approval is None:
             return None
-        return self.yoy_change(prev_approval, self.glassdoor_ceo_approval)
+        return self.yoy_change(prev_approval, glassdoor_ceo_approval)
 
     def employee_engagement_proxy(self):
         """
         Combined proxy: Glassdoor rating × CEO approval rate
         CEO approval is assumed to be a % (0–100).
         """
-        if self.glassdoor_rating is None or self.glassdoor_ceo_approval is None:
+        glassdoor_rating = self._to_scalar(self.glassdoor_rating)
+        glassdoor_ceo_approval = self._to_scalar(self.glassdoor_ceo_approval)
+        if glassdoor_rating is None or glassdoor_ceo_approval is None:
             return None
-        return self.glassdoor_rating * (self.glassdoor_ceo_approval / 100)
+        return glassdoor_rating * (glassdoor_ceo_approval / 100)
 
     def female_workforce_ratio_trend(self, prev_female_workforce_pct):
-        if prev_female_workforce_pct is None or self.female_workforce_pct is None:
+        prev_female_workforce_pct = self._to_scalar(prev_female_workforce_pct)
+        female_workforce_pct = self._to_scalar(self.female_workforce_pct)
+        if prev_female_workforce_pct is None or female_workforce_pct is None:
             return None
-        return self.yoy_change(prev_female_workforce_pct, self.female_workforce_pct)
+        return self.yoy_change(prev_female_workforce_pct, female_workforce_pct)
 
     def female_executive_ratio_trend(self, prev_female_executive_pct):
-        if prev_female_executive_pct is None or self.female_executive_pct is None:
+        prev_female_executive_pct = self._to_scalar(prev_female_executive_pct)
+        female_executive_pct = self._to_scalar(self.female_executive_pct)
+        if prev_female_executive_pct is None or female_executive_pct is None:
             return None
-        return self.yoy_change(prev_female_executive_pct, self.female_executive_pct)
+        return self.yoy_change(prev_female_executive_pct, female_executive_pct)
 
     def gender_representation_gap(self):
-        if self.female_workforce_pct is None or self.female_executive_pct is None:
+        female_workforce_pct = self._to_scalar(self.female_workforce_pct)
+        female_executive_pct = self._to_scalar(self.female_executive_pct)
+        if female_workforce_pct is None or female_executive_pct is None:
             return None
-        return self.percentage_gap(self.female_workforce_pct, self.female_executive_pct)
+        return self.percentage_gap(female_workforce_pct, female_executive_pct)
 
     def employee_turnover_trend_yoy(self, prev_turnover_pct):
-        if prev_turnover_pct is None or self.employee_turnover_pct is None:
+        prev_turnover_pct = self._to_scalar(prev_turnover_pct)
+        employee_turnover_pct = self._to_scalar(self.employee_turnover_pct)
+        if prev_turnover_pct is None or employee_turnover_pct is None:
             return None
-        return self.yoy_change(prev_turnover_pct, self.employee_turnover_pct)
+        return self.yoy_change(prev_turnover_pct, employee_turnover_pct)
 
     def voluntary_turnover_ratio(self, voluntary_turnover_pct):
-        if voluntary_turnover_pct is None or self.employee_turnover_pct is None:
+        voluntary_turnover_pct = self._to_scalar(voluntary_turnover_pct)
+        employee_turnover_pct = self._to_scalar(self.employee_turnover_pct)
+        if voluntary_turnover_pct is None or employee_turnover_pct is None or employee_turnover_pct == 0:
             return None
-        return voluntary_turnover_pct / self.employee_turnover_pct
+        return voluntary_turnover_pct / employee_turnover_pct
 
     def retention_stability_index(self):
         """Inverse of turnover (higher = more stable)."""
-        if self.employee_turnover_pct is None:
+        employee_turnover_pct = self._to_scalar(self.employee_turnover_pct)
+        if employee_turnover_pct is None:
             return None
-        return 1 - (self.employee_turnover_pct / 100)
+        return 1 - (employee_turnover_pct / 100)
 
     def high_performer_turnover_estimate(self, prev_high_perf_turnover, curr_high_perf_turnover):
+        prev_high_perf_turnover = self._to_scalar(prev_high_perf_turnover)
+        curr_high_perf_turnover = self._to_scalar(curr_high_perf_turnover)
         if prev_high_perf_turnover is None or curr_high_perf_turnover is None:
             return None
         return self.yoy_change(prev_high_perf_turnover, curr_high_perf_turnover)
@@ -323,155 +431,213 @@ class GovernanceParameters:
         self.ceo_tenure_years = ceo_tenure_years
 
     # -----------------------
+    # Helper function to convert to scalar
+    # -----------------------
+    @staticmethod
+    def _to_scalar(value):
+        """
+        Attempts to convert a value to a scalar (float).
+        Returns None if the value cannot be converted (e.g., string explanations).
+        Returns None if the value is None.
+        """
+        if value is None:
+            return None
+        try:
+            # Try to convert to float
+            return float(value)
+        except (ValueError, TypeError):
+            # If conversion fails (e.g., string explanation), return None
+            return None
+
+    # -----------------------
     # Helper functions
     # -----------------------
 
     @staticmethod
     def yoy_change(previous, current):
-        if previous is None or current is None:
+        previous = GovernanceParameters._to_scalar(previous)
+        current = GovernanceParameters._to_scalar(current)
+        if previous is None or current is None or previous == 0:
             return None
-        return (current - previous) / previous if previous else None
+        return (current - previous) / previous
 
     @staticmethod
     def cagr(start, end, years=3):
-        if start is None or end is None or years is None:
+        start = GovernanceParameters._to_scalar(start)
+        end = GovernanceParameters._to_scalar(end)
+        years = GovernanceParameters._to_scalar(years)
+        if start is None or end is None or years is None or start <= 0:
             return None
-        return (end / start) ** (1 / years) - 1 if start > 0 else None
+        return (end / start) ** (1 / years) - 1
 
     # -----------------------
     # Derived parameters
     # -----------------------
 
     def lawsuits_per_revenue(self):
-        if self.num_lawsuits is None or self.revenue is None:
+        num_lawsuits = self._to_scalar(self.num_lawsuits)
+        revenue = self._to_scalar(self.revenue)
+        if num_lawsuits is None or revenue is None or revenue == 0:
             return None
-        return self.num_lawsuits / self.revenue
+        return num_lawsuits / revenue
 
     def lawsuit_growth_rate(self, previous_lawsuits):
-        if previous_lawsuits is None or self.num_lawsuits is None:
+        previous_lawsuits = self._to_scalar(previous_lawsuits)
+        num_lawsuits = self._to_scalar(self.num_lawsuits)
+        if previous_lawsuits is None or num_lawsuits is None:
             return None
-        return self.yoy_change(previous_lawsuits, self.num_lawsuits)
+        return self.yoy_change(previous_lawsuits, num_lawsuits)
 
     def average_lawsuit_severity(self, total_lawsuit_costs):
-        if total_lawsuit_costs is None or self.num_lawsuits is None:
+        total_lawsuit_costs = self._to_scalar(total_lawsuit_costs)
+        num_lawsuits = self._to_scalar(self.num_lawsuits)
+        if total_lawsuit_costs is None or num_lawsuits is None or num_lawsuits == 0:
             return None
-        return total_lawsuit_costs / self.num_lawsuits if self.num_lawsuits else None
+        return total_lawsuit_costs / num_lawsuits
 
     def lawsuits_per_operating_country(self):
-        if self.num_lawsuits is None or self.operating_countries is None:
+        num_lawsuits = self._to_scalar(self.num_lawsuits)
+        operating_countries = self._to_scalar(self.operating_countries)
+        if num_lawsuits is None or operating_countries is None or operating_countries == 0:
             return None
-        return self.num_lawsuits / self.operating_countries
+        return num_lawsuits / operating_countries
 
     def regulatory_investigations_per_revenue(self):
-        if self.regulatory_investigations is None or self.revenue is None:
+        regulatory_investigations = self._to_scalar(self.regulatory_investigations)
+        revenue = self._to_scalar(self.revenue)
+        if regulatory_investigations is None or revenue is None or revenue == 0:
             return None
-        return self.regulatory_investigations / self.revenue
+        return regulatory_investigations / revenue
 
     def regulatory_investigation_growth_rate(self, previous_investigations):
-        if previous_investigations is None or self.regulatory_investigations is None:
+        previous_investigations = self._to_scalar(previous_investigations)
+        regulatory_investigations = self._to_scalar(self.regulatory_investigations)
+        if previous_investigations is None or regulatory_investigations is None:
             return None
-        return self.yoy_change(previous_investigations, self.regulatory_investigations)
+        return self.yoy_change(previous_investigations, regulatory_investigations)
 
     def regulatory_investigation_duration(self):
         """Assumes average investigation length is provided externally."""
-        if self.avg_reg_investigation_length is None:
-            return None
-        return self.avg_reg_investigation_length
+        avg_reg_investigation_length = self._to_scalar(self.avg_reg_investigation_length)
+        return avg_reg_investigation_length
 
     def corruption_cases_per_billion_revenue(self):
-        if self.corruption_cases is None or self.revenue is None:
+        corruption_cases = self._to_scalar(self.corruption_cases)
+        revenue = self._to_scalar(self.revenue)
+        if corruption_cases is None or revenue is None or revenue == 0:
             return None
-        return self.corruption_cases / (self.revenue / 1_000_000_000)
+        return corruption_cases / (revenue / 1_000_000_000)
 
     def corruption_case_growth_rate(self, previous_cases):
-        if previous_cases is None or self.corruption_cases is None:
+        previous_cases = self._to_scalar(previous_cases)
+        corruption_cases = self._to_scalar(self.corruption_cases)
+        if previous_cases is None or corruption_cases is None:
             return None
-        return self.yoy_change(previous_cases, self.corruption_cases)
+        return self.yoy_change(previous_cases, corruption_cases)
 
     def corruption_severity_score(self):
         """Total fines per corruption case."""
-        if self.corruption_total_fines is None or self.corruption_cases is None:
+        corruption_total_fines = self._to_scalar(self.corruption_total_fines)
+        corruption_cases = self._to_scalar(self.corruption_cases)
+        if corruption_total_fines is None or corruption_cases is None or corruption_cases == 0:
             return None
-        if self.corruption_cases == 0:
-            return None
-        return self.corruption_total_fines / self.corruption_cases
+        return corruption_total_fines / corruption_cases
 
     def anti_competitive_fines_per_revenue(self):
-        if self.anti_competitive_fines is None or self.revenue is None:
+        anti_competitive_fines = self._to_scalar(self.anti_competitive_fines)
+        revenue = self._to_scalar(self.revenue)
+        if anti_competitive_fines is None or revenue is None or revenue == 0:
             return None
-        return self.anti_competitive_fines / self.revenue
+        return anti_competitive_fines / revenue
 
     def anti_competitive_fines_growth_rate(self, previous_fines):
-        if previous_fines is None or self.anti_competitive_fines is None:
+        previous_fines = self._to_scalar(previous_fines)
+        anti_competitive_fines = self._to_scalar(self.anti_competitive_fines)
+        if previous_fines is None or anti_competitive_fines is None:
             return None
-        return self.yoy_change(previous_fines, self.anti_competitive_fines)
+        return self.yoy_change(previous_fines, anti_competitive_fines)
 
     def anti_competitive_violations_per_country(self):
-        if self.anti_competitive_fines is None or self.operating_countries is None:
+        anti_competitive_fines = self._to_scalar(self.anti_competitive_fines)
+        operating_countries = self._to_scalar(self.operating_countries)
+        if anti_competitive_fines is None or operating_countries is None or operating_countries == 0:
             return None
-        return self.anti_competitive_fines / self.operating_countries
+        return anti_competitive_fines / operating_countries
 
     def board_independence_trend_3yr(self, independence_pct_3yr_ago):
-        if independence_pct_3yr_ago is None or self.board_independence_pct is None:
+        independence_pct_3yr_ago = self._to_scalar(independence_pct_3yr_ago)
+        board_independence_pct = self._to_scalar(self.board_independence_pct)
+        if independence_pct_3yr_ago is None or board_independence_pct is None:
             return None
-        return self.yoy_change(independence_pct_3yr_ago, self.board_independence_pct)
+        return self.yoy_change(independence_pct_3yr_ago, board_independence_pct)
 
     def independent_directors_ratio(self):
-        if self.board_independence_pct is None:
+        board_independence_pct = self._to_scalar(self.board_independence_pct)
+        if board_independence_pct is None:
             return None
-        return self.board_independence_pct / 100
+        return board_independence_pct / 100
 
     def financial_restatements_per_year(self, years=1):
-        if self.financial_restatements is None or years is None:
+        financial_restatements = self._to_scalar(self.financial_restatements)
+        years = self._to_scalar(years)
+        if financial_restatements is None or years is None or years == 0:
             return None
-        return self.financial_restatements / years
+        return financial_restatements / years
 
     def restatement_severity_score(self, earnings_impact):
         """Impact on earnings per restatement."""
-        if earnings_impact is None or self.financial_restatements is None:
+        earnings_impact = self._to_scalar(earnings_impact)
+        financial_restatements = self._to_scalar(self.financial_restatements)
+        if earnings_impact is None or financial_restatements is None or financial_restatements == 0:
             return None
-        return earnings_impact / self.financial_restatements if self.financial_restatements else None
+        return earnings_impact / financial_restatements
 
     def csuite_turnover_frequency(self):
-        if self.csuite_turnover_rate is None:
-            return None
-        return self.csuite_turnover_rate
+        csuite_turnover_rate = self._to_scalar(self.csuite_turnover_rate)
+        return csuite_turnover_rate
 
     def csuite_turnover_spike_indicator(self, previous_turnover_rate, threshold=0.2):
         """Returns True if YoY turnover increase > threshold."""
-        if previous_turnover_rate is None or self.csuite_turnover_rate is None:
+        previous_turnover_rate = self._to_scalar(previous_turnover_rate)
+        csuite_turnover_rate = self._to_scalar(self.csuite_turnover_rate)
+        if previous_turnover_rate is None or csuite_turnover_rate is None:
             return None
-        change = self.yoy_change(previous_turnover_rate, self.csuite_turnover_rate)
+        change = self.yoy_change(previous_turnover_rate, csuite_turnover_rate)
         return change is not None and change > threshold
 
     def ceo_tenure_length(self):
-        if self.ceo_tenure_years is None:
-            return None
-        return self.ceo_tenure_years
+        ceo_tenure_years = self._to_scalar(self.ceo_tenure_years)
+        return ceo_tenure_years
 
     def executive_stability_index(self):
         """Inverse of turnover."""
-        if self.csuite_turnover_rate is None:
+        csuite_turnover_rate = self._to_scalar(self.csuite_turnover_rate)
+        if csuite_turnover_rate is None:
             return None
-        return 1 - (self.csuite_turnover_rate / 100)
+        return 1 - (csuite_turnover_rate / 100)
 
     def political_donations_per_revenue(self):
-        if self.political_donations is None or self.revenue is None:
+        political_donations = self._to_scalar(self.political_donations)
+        revenue = self._to_scalar(self.revenue)
+        if political_donations is None or revenue is None or revenue == 0:
             return None
-        return self.political_donations / self.revenue
+        return political_donations / revenue
 
     def political_donations_concentration(self, top_sector_pct):
         """Returns % of political donations going to top sector/party."""
-        if top_sector_pct is None:
-            return None
+        top_sector_pct = self._to_scalar(top_sector_pct)
         return top_sector_pct
 
     def political_donation_volatility_yoy(self, previous_donations):
-        if previous_donations is None or self.political_donations is None:
+        previous_donations = self._to_scalar(previous_donations)
+        political_donations = self._to_scalar(self.political_donations)
+        if previous_donations is None or political_donations is None:
             return None
-        return self.yoy_change(previous_donations, self.political_donations)
+        return self.yoy_change(previous_donations, political_donations)
 
     def major_shareholder_lawsuits_per_billion_revenue(self):
-        if self.major_shareholder_lawsuits is None or self.revenue is None:
+        major_shareholder_lawsuits = self._to_scalar(self.major_shareholder_lawsuits)
+        revenue = self._to_scalar(self.revenue)
+        if major_shareholder_lawsuits is None or revenue is None or revenue == 0:
             return None
-        return self.major_shareholder_lawsuits / (self.revenue / 1_000_000_000)
+        return major_shareholder_lawsuits / (revenue / 1_000_000_000)
