@@ -117,7 +117,7 @@ def find_promises(esg_report_text: str, json_template: Dict[str, Any]) -> Dict[s
 	result = copy.deepcopy(json_template)
 	
 	# Limit text to avoid token limits
-	limited_text = esg_report_text
+	limited_text = esg_report_text[:50000]
 	print(f"  ESG report text length: {len(esg_report_text)} chars (using first {len(limited_text)} chars)")
 	print(f"  Extracting {len(ALL_RAW_PARAMS)} raw parameters from ESG report...")
 	
@@ -393,16 +393,27 @@ Metric: {metric_name}
 Search for: violations, fines, lawsuits, regulatory actions, or negative news that contradicts this claim.
 
 Rules:
-- If contradictory evidence found → mark "invalidated": true
-- If no contradiction found → mark "invalidated": false (claim stands)
+- If contradictory evidence found → mark "invalidated": true and include sources
+- If no contradiction found → mark "invalidated": false (claim stands) and leave sources as empty array
 
 Return JSON only:
 {{
 	"invalidated": true or false,
-	"reasoning": "brief explanation"
-}}"""
+	"reasoning": "brief explanation of why the claim is invalidated or valid",
+	"sources": [
+		{{
+			"url": "https://example.com/article",
+			"description": "Brief description of how this source contradicts the claim"
+		}}
+	]
+}}
 
-	sources = []
+IMPORTANT:
+- Include sources ONLY if invalidated is true
+- Each source must have a valid URL and description
+- If invalidated is false, return empty sources array: "sources": []
+- Use actual URLs from web search results, not placeholder URLs"""
+
 	try:
 		# Using responses API with web search tool enabled
 		# Optimized prompt - removed redundant instructions
@@ -416,7 +427,7 @@ Return JSON only:
 			input=full_prompt
 		)
 		
-		# Extract sources and text from response
+		# Extract text from response
 		# Response is iterable and contains a list of objects with different types
 		output_text = ""
 		
@@ -438,36 +449,57 @@ Return JSON only:
 									text = content_item.get('text', '')
 									if text:
 										output_text += text
-								
-								# Extract sources from annotations
-								annotations = content_item.get('annotations', [])
-								if isinstance(annotations, list):
-									for annotation in annotations:
-										if annotation.get('type') == 'url_citation':
-											url = annotation.get('url', '')
-											title = annotation.get('title', '')
-											if url:
-												sources.append({
-													"url": url,
-													"description": title or f"Source for {metric_name} validation"
-												})
 		
-		# Parse validation result from output text
+		# Parse validation result from output text (sources are now in the JSON)
 		validation_result = {}
+		sources = []
+		
 		if output_text:
 			try:
 				validation_result = json.loads(output_text)
 			except json.JSONDecodeError:
 				# If not valid JSON, try to extract JSON from the text
-				# Look for JSON object in the text
+				# Look for JSON object in the text - need to handle nested objects for sources array
 				import re
-				# Try to find JSON with "invalidated" key
-				json_match = re.search(r'\{[^{}]*"invalidated"[^{}]*\}', output_text)
+				# Try to find JSON with "invalidated" key - use a more robust pattern
+				# Match from first { to last } that contains "invalidated" and "sources"
+				# This pattern tries to match balanced braces to get the full JSON object
+				json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', output_text, re.DOTALL)
 				if json_match:
 					try:
 						validation_result = json.loads(json_match.group())
 					except:
-						pass
+						# Try to find and fix common JSON issues
+						json_str = json_match.group()
+						# Remove trailing commas before closing braces/brackets
+						json_str = re.sub(r',\s*}', '}', json_str)
+						json_str = re.sub(r',\s*]', ']', json_str)
+						try:
+							validation_result = json.loads(json_str)
+						except:
+							# Last resort: try to extract just the fields we need
+							print(f"      WARNING: Could not parse full JSON, attempting partial extraction")
+							invalidated_match = re.search(r'"invalidated"\s*:\s*(true|false)', output_text, re.IGNORECASE)
+							if invalidated_match:
+								validation_result["invalidated"] = invalidated_match.group(1).lower() == "true"
+							reasoning_match = re.search(r'"reasoning"\s*:\s*"([^"]*)"', output_text)
+							if reasoning_match:
+								validation_result["reasoning"] = reasoning_match.group(1)
+							validation_result["sources"] = []  # Will try to extract sources separately
+		
+		# Extract sources from the JSON validation result
+		if isinstance(validation_result, dict):
+			sources_data = validation_result.get("sources", [])
+			if isinstance(sources_data, list):
+				for source in sources_data:
+					if isinstance(source, dict):
+						url = source.get("url", "").strip()
+						description = source.get("description", "").strip()
+						if url and url.startswith(("http://", "https://")):
+							sources.append({
+								"url": url,
+								"description": description or f"Evidence contradicting {metric_name} claim"
+							})
 		
 		# Check if claim was invalidated
 		# If invalidated is True, the claim is FALSE (not valid)
@@ -483,6 +515,8 @@ Return JSON only:
 		print(f"      Result: {'✗ INVALIDATED' if is_invalidated else '✓ VALID (no contradiction found)'} - {reasoning[:80]}")
 		if display_sources:
 			print(f"      Found {len(display_sources)} source(s) contradicting the claim")
+			for idx, src in enumerate(display_sources, 1):
+				print(f"        Source {idx}: {src.get('url', 'NO URL')[:60]}... - {src.get('description', 'NO DESCRIPTION')[:50]}")
 		
 		return is_valid, display_sources
 		
