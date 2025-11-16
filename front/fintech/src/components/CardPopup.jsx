@@ -209,15 +209,53 @@ function CardPopup({ ticker, onClose }) {
                 {getFormattedTruths().map((truth, index) => {
                   const sources = getSourcesForMetric(truth.metricKey);
                   const hasSources = sources.length > 0;
+                  const isInvalidated = !truth.verified;
+                  
                   return (
                     <li 
                       key={index} 
-                      className={`${truth.verified ? 'truth-positive' : 'truth-negative'} ${hasSources ? 'clickable-metric' : ''}`}
-                      onClick={() => hasSources && handleMetricClick(truth.metricKey)}
-                      style={hasSources ? { cursor: 'pointer' } : {}}
+                      className={`${truth.verified ? 'truth-positive' : 'truth-negative'}`}
                     >
-                      <strong>{truth.metric}:</strong> {truth.verified ? 'Verified ✓' : 'Not Verified ✗'}
-                      {hasSources && <span className="sources-indicator"> ({sources.length} source{sources.length !== 1 ? 's' : ''})</span>}
+                      <div className="truth-item-header">
+                        <strong>{truth.metric}:</strong> {truth.verified ? 'Verified ✓' : 'Not Verified ✗'}
+                        {hasSources && isInvalidated && (
+                          <span className="sources-indicator"> ({sources.length} source{sources.length !== 1 ? 's' : ''})</span>
+                        )}
+                      </div>
+                      
+                      {/* Show sources inline for invalidated claims */}
+                      {isInvalidated && hasSources && (
+                        <div className="sources-inline">
+                          <div className="sources-inline-header">
+                            <strong>Evidence of Contradiction:</strong>
+                          </div>
+                          <ul className="sources-inline-list">
+                            {sources.map((source, sourceIndex) => (
+                              <li key={sourceIndex} className="source-inline-item">
+                                <a 
+                                  href={source.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="source-inline-link"
+                                >
+                                  <span className="source-inline-description">{source.description || source.url}</span>
+                                  <span className="source-inline-url">{source.url}</span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* For verified claims with sources, show clickable indicator */}
+                      {truth.verified && hasSources && (
+                        <div 
+                          className="sources-clickable-hint"
+                          onClick={() => handleMetricClick(truth.metricKey)}
+                        >
+                          <span className="sources-indicator">View {sources.length} source{sources.length !== 1 ? 's' : ''} →</span>
+                        </div>
+                      )}
                     </li>
                   );
                 })}
@@ -256,20 +294,6 @@ function CardPopup({ ticker, onClose }) {
               </div>
             )}
 
-            {companyData.sources && companyData.sources.length > 0 && (
-              <div className="sources-section">
-                <h3>Sources</h3>
-                <ul className="sources-list">
-                  {companyData.sources.map((source, index) => (
-                    <li key={index}>
-                      <a href={source.url} target="_blank" rel="noopener noreferrer">
-                        {source.description || source.url}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </>
         ) : null}
       </div>

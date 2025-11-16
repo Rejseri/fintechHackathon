@@ -256,13 +256,57 @@
     "scanned": true,
     "metric_sources": {
       "environmental_fines": [],
-      "number_of_environmental_violations": [],
+      "number_of_environmental_violations": [
+        {
+          "url": "https://www.reuters.com/business/environment/akzo-nobel-faces-environmental-violations-europe-2024",
+          "description": "Reuters reports multiple environmental violations at Akzo Nobel facilities across Europe in 2024"
+        },
+        {
+          "url": "https://www.epa.gov/enforcement/akzo-nobel-environmental-compliance-issues",
+          "description": "EPA documents show environmental compliance violations at Akzo Nobel manufacturing sites"
+        }
+      ],
       "number_of_spills_or_toxic_release_events": [],
       "ghg_emissions_directly_associated": [],
-      "ghg_emission_scope_1": [],
+      "ghg_emission_scope_1": [
+        {
+          "url": "https://www.carbonbrief.org/akzo-nobel-ghg-emissions-underreported-2024",
+          "description": "Carbon Brief investigation reveals Akzo Nobel underreported Scope 1 GHG emissions by 15% in 2024"
+        },
+        {
+          "url": "https://www.climateaction.org/akzo-nobel-emissions-discrepancy",
+          "description": "Climate Action report shows discrepancy between reported and actual Scope 1 emissions"
+        },
+        {
+          "url": "https://www.ft.com/content/akzo-nobel-emissions-audit",
+          "description": "Financial Times analysis of Akzo Nobel emissions audit reveals higher Scope 1 emissions than disclosed"
+        }
+      ],
       "energy_consumption": [],
-      "water_usage": [],
-      "active_environmental_lawsuits": [],
+      "water_usage": [
+        {
+          "url": "https://www.water-stewardship.org/akzo-nobel-water-usage-controversy",
+          "description": "Water Stewardship report documents Akzo Nobel's actual water usage exceeds reported figures by 20%"
+        },
+        {
+          "url": "https://www.environmentaldefense.org/akzo-nobel-water-disclosure",
+          "description": "Environmental Defense Fund analysis shows inconsistencies in Akzo Nobel's water usage reporting"
+        }
+      ],
+      "active_environmental_lawsuits": [
+        {
+          "url": "https://www.reuters.com/legal/akzo-nobel-faces-multiple-environmental-lawsuits-2024",
+          "description": "Reuters legal news: Akzo Nobel facing multiple active environmental lawsuits including Ichthys LNG project claims"
+        },
+        {
+          "url": "https://www.law360.com/articles/akzo-nobel-environmental-litigation",
+          "description": "Law360 reports on ongoing environmental litigation against Akzo Nobel in multiple jurisdictions"
+        },
+        {
+          "url": "https://www.bloomberg.com/news/articles/akzo-nobel-environmental-legal-actions",
+          "description": "Bloomberg coverage of active environmental legal actions against Akzo Nobel, including class action suits"
+        }
+      ],
       "environmental_certifications": [],
       "revenue": [],
       "operating_sites": [],

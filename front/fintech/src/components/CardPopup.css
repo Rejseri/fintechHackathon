@@ -202,11 +202,18 @@
 
 .truths-list li {
   padding: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   border-radius: 4px;
   color: #555;
   line-height: 1.6;
   border-left: 4px solid;
+}
+
+.truth-item-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .truth-positive {
@@ -246,8 +253,78 @@
   font-size: 0.85em;
   color: #667eea;
   font-weight: normal;
-  margin-left: 8px;
   opacity: 0.8;
+}
+
+/* Inline Sources Styles */
+.sources-inline {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sources-inline-header {
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  color: #dc2626;
+}
+
+.sources-inline-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.source-inline-item {
+  margin-bottom: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.source-inline-item:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.source-inline-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.source-inline-description {
+  font-size: 0.9em;
+  color: #333;
+  font-weight: 500;
+}
+
+.source-inline-url {
+  font-size: 0.75em;
+  color: #667eea;
+  word-break: break-all;
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+.source-inline-link:hover .source-inline-url {
+  opacity: 1;
+}
+
+.sources-clickable-hint {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sources-clickable-hint:hover {
+  background: rgba(102, 126, 234, 0.2);
+  transform: translateX(4px);
 }
 
 /* Sources Modal Styles */
