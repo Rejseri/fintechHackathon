@@ -40,6 +40,7 @@ class CompanyData(BaseModel):
     truth: Dict[str, bool]  # Boolean values for each metric
     sources: List[Source]
     metric_sources: Optional[Dict[str, List[Source]]] = {}  # Sources per metric
+    metric_units: Optional[Dict[str, str]] = {}  # Units for scalar metrics
 
 
 class AddCompanyRequest(BaseModel):
@@ -469,6 +470,9 @@ async def get_company_data(ticker: str):
         if isinstance(metric_source_list, list):
             metric_sources[metric_key] = [Source(**s) if isinstance(s, dict) else s for s in metric_source_list]
 
+    # Get metric units from aiwrapper
+    metric_units = aiwrapper.METRIC_UNITS.copy()
+
     # Return the company data
     return CompanyData(
         ticker=ticker_upper,
@@ -477,7 +481,8 @@ async def get_company_data(ticker: str):
         promise=company_data["promise"],
         truth=company_data["truth"],
         sources=sources,
-        metric_sources=metric_sources
+        metric_sources=metric_sources,
+        metric_units=metric_units
     )
 
 

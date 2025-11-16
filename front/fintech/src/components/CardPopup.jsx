@@ -76,30 +76,91 @@ function CardPopup({ ticker, onClose }) {
 
   if (!ticker) return null;
 
+  // Check if a value is a scalar (number)
+  const isScalar = (value) => {
+    if (value === null || value === undefined) return false;
+    // Check if it's a number or can be parsed as a number
+    if (typeof value === 'number') return true;
+    if (typeof value === 'string') {
+      // Remove whitespace and check if it's a valid number
+      const trimmed = value.trim();
+      // Check if it's a pure number (integer or decimal)
+      return /^-?\d+(\.\d+)?$/.test(trimmed);
+    }
+    return false;
+  };
+
+  // Format metric value with unit (only if scalar)
+  const formatMetricValue = (value, unit) => {
+    if (value === null || value === undefined) return 'N/A';
+    if (isScalar(value)) {
+      // Value is a scalar, append unit if available
+      return unit ? `${value} ${unit}` : String(value);
+    }
+    // Value is text, return as-is without unit
+    return String(value);
+  };
+
   // Format promise metrics for display (show first 10 as sample metrics)
   const getSampleMetrics = () => {
     if (!companyData?.promise) return {};
-    const entries = Object.entries(companyData.promise).slice(0, 10);
+    const metricUnits = companyData.metric_units || {};
+    const entries = Object.entries(companyData.promise)
+      .filter(([key, value]) => {
+        // Filter out metrics with N/A values (null, undefined, or formatted as 'N/A')
+        if (value === null || value === undefined) return false;
+        const unit = metricUnits[key] || "";
+        const formatted = formatMetricValue(value, unit);
+        return formatted !== 'N/A';
+      })
+      .slice(0, 10);
     return Object.fromEntries(entries);
   };
 
-  // Format promises for display (show metric names with values)
+  // Format promises for display (show metric names with values and units)
   const getFormattedPromises = () => {
     if (!companyData?.promise) return [];
-    return Object.entries(companyData.promise).slice(0, 20).map(([key, value]) => ({
-      metric: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      value: value
-    }));
+    const metricUnits = companyData.metric_units || {};
+    return Object.entries(companyData.promise)
+      .filter(([key, value]) => {
+        // Filter out metrics with N/A values (null, undefined, or formatted as 'N/A')
+        if (value === null || value === undefined) return false;
+        const unit = metricUnits[key] || "";
+        const formatted = formatMetricValue(value, unit);
+        return formatted !== 'N/A';
+      })
+      .slice(0, 20)
+      .map(([key, value]) => {
+        const unit = metricUnits[key] || "";
+        return {
+          metric: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: value,
+          unit: unit,
+          metricKey: key
+        };
+      });
   };
 
   // Format truths for display (show metrics where truth is true/false)
   const getFormattedTruths = () => {
     if (!companyData?.truth) return [];
-    return Object.entries(companyData.truth).slice(0, 20).map(([key, value]) => ({
-      metricKey: key,
-      metric: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      verified: value
-    }));
+    const promises = companyData.promise || {};
+    const metricUnits = companyData.metric_units || {};
+    return Object.entries(companyData.truth)
+      .filter(([key, value]) => {
+        // Filter out metrics where the corresponding promise value is N/A
+        const promiseValue = promises[key];
+        if (promiseValue === null || promiseValue === undefined) return false;
+        const unit = metricUnits[key] || "";
+        const formatted = formatMetricValue(promiseValue, unit);
+        return formatted !== 'N/A';
+      })
+      .slice(0, 20)
+      .map(([key, value]) => ({
+        metricKey: key,
+        metric: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        verified: value
+      }));
   };
 
   // Get sources for a specific metric
@@ -181,14 +242,20 @@ function CardPopup({ ticker, onClose }) {
             <div className="metrics-section">
               <h3>Sample ESG Metrics</h3>
               <div className="metrics-grid">
-                {Object.entries(getSampleMetrics()).map(([key, value]) => (
-                  <div key={key} className="metric-item">
-                    <span className="metric-label">
-                      {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </span>
-                    <span className="metric-value">{value}</span>
-                  </div>
-                ))}
+                {Object.entries(getSampleMetrics()).map(([key, value]) => {
+                  const metricUnits = companyData.metric_units || {};
+                  const unit = metricUnits[key] || "";
+                  return (
+                    <div key={key} className="metric-item">
+                      <span className="metric-label">
+                        {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </span>
+                      <span className="metric-value">
+                        {formatMetricValue(value, unit)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -197,7 +264,7 @@ function CardPopup({ ticker, onClose }) {
               <ul className="promises-list">
                 {getFormattedPromises().map((promise, index) => (
                   <li key={index}>
-                    <strong>{promise.metric}:</strong> {promise.value}
+                    <strong>{promise.metric}:</strong> {formatMetricValue(promise.value, promise.unit)}
                   </li>
                 ))}
               </ul>

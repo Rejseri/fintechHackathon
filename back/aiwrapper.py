@@ -100,6 +100,90 @@ BASIC_PARAMS_EXCLUDED_FROM_VALIDATION = [
 	"operating_countries"
 ]
 
+# Define units for scalar metrics (metrics that will be populated with numeric values)
+# This helps provide context during extraction and validation
+METRIC_UNITS = {
+	# Environmental raw parameters
+	"environmental_fines": "USD",
+	"number_of_environmental_violations": "count",
+	"number_of_spills_or_toxic_release_events": "count",
+	"ghg_emissions_directly_associated": "tCO2e",
+	"ghg_emission_scope_1": "tCO2e",
+	"energy_consumption": "MWh",
+	"water_usage": "m³",
+	"active_environmental_lawsuits": "count",
+	"environmental_certifications": "count",
+	
+	# Social raw parameters
+	"fatalities": "count",
+	"worker_injury_rate": "%",
+	"number_of_strikes": "count",
+	"contractor_incident_rate": "%",
+	"glassdoor_average_rating": "rating (1-5)",
+	"glassdoor_ceo_approval": "%",
+	"female_workforce_%": "%",
+	"female_executive_%": "%",
+	"employee_turnover_%": "%",
+	
+	# Governance raw parameters
+	"regulatory_investigations": "count",
+	"corruptions/bribery_cases": "count",
+	"anti_competitive_behavior_fines": "USD",
+	"board_independence_%": "%",
+	"number_of_financial_restatements": "count",
+	"c-suit_turnover_rate": "%",
+	"political_donations": "USD",
+	"major_shareholder_lawsuits": "count",
+	
+	# Basic operational parameters
+	"revenue": "USD",
+	"operating_sites": "count",
+	"production_volume": "units",
+	"employees": "count",
+	"operating_countries": "count",
+	
+	# Environmental derived metrics
+	"environmental_fines_per_revenue": "USD/USD",
+	"environmental_fines_per_operating_site": "USD/site",
+	"violations_per_revenue": "count/USD",
+	"violations_per_operating_site": "count/site",
+	"violations_per_production_volume": "count/unit",
+	"emissions_intensity_(scope_1_per_revenue)": "tCO2e/USD",
+	"emissions_intensity_(scope_1_per_production_volume)": "tCO2e/unit",
+	"emissions_per_employee": "tCO2e/employee",
+	"energy_intensity_(energy_per_revenue)": "MWh/USD",
+	"energy_intensity_(energy_per_production_volume)": "MWh/unit",
+	"energy_efficiency_ratio_(revenue_per_energy_consumed)": "USD/MWh",
+	"carbon_efficiency_ratio_(revenue_per_ton_$co_{2}$)": "USD/tCO2e",
+	"water_intensity_(water_per_revenue)": "m³/USD",
+	"water_intensity_(water_per_production_volume)": "m³/unit",
+	"water_use_per_employee": "m³/employee",
+	"spill_frequency_per_site": "count/site",
+	"spill_frequency_per_production_unit": "count/unit",
+	"active_environmental_lawsuits_per_revenue": "count/USD",
+	"active_environmental_lawsuits_per_site": "count/site",
+	
+	# Social derived metrics
+	"fatalities_per_1,000_employees": "count/1000 employees",
+	"strikes_per_1,000_employees": "count/1000 employees",
+	"total_recordable_incident_rate_(trir)": "%",
+	"employee_engagement_proxy_(glassdoor_rating_ceo_approval)": "rating",
+	"gender_representation_gap_(female_workforce_%_-_female_executive_%)": "%",
+	"retention_stability_index_(inverse_turnover)": "ratio",
+	
+	# Governance derived metrics
+	"lawsuits_per_revenue": "count/USD",
+	"regulatory_investigations_per_revenue": "count/USD",
+	"corruption_cases_per_billion_revenue": "count/billion USD",
+	"anti-competitive_fines_per_revenue": "USD/USD",
+	"political_donations_per_revenue": "USD/USD",
+	"major_shareholder_lawsuits_per_billion_revenue": "count/billion USD",
+	"lawsuits_per_operating_country": "count/country",
+	"anti-competitive_violations_per_operating_country": "USD/country",
+	"independent_directors_ratio": "ratio",
+	"executive_stability_index_(inverse_of_turnover)": "ratio",
+}
+
 
 def find_promises(esg_report_text: str, json_template: Dict[str, Any]) -> Dict[str, Any]:
 	"""
@@ -121,23 +205,34 @@ def find_promises(esg_report_text: str, json_template: Dict[str, Any]) -> Dict[s
 	print(f"  ESG report text length: {len(esg_report_text)} chars (using first {len(limited_text)} chars)")
 	print(f"  Extracting {len(ALL_RAW_PARAMS)} raw parameters from ESG report...")
 	
+	# Build parameter list with units for better context
+	params_with_units = []
+	for param in ALL_RAW_PARAMS:
+		unit = METRIC_UNITS.get(param, "")
+		if unit:
+			params_with_units.append(f"{param} (unit: {unit})")
+		else:
+			params_with_units.append(param)
+	
 	# Create a prompt to extract only raw parameters
 	prompt = f"""Analyze the following ESG report and extract specific promises, commitments, and claims for ONLY the following raw parameters.
 
 ESG Report:
 {limited_text}
 
-Raw Parameters to Extract:
-{json.dumps(ALL_RAW_PARAMS, indent=2)}
+Raw Parameters to Extract (with units for scalar metrics):
+{json.dumps(params_with_units, indent=2)}
 
 For each parameter, extract:
 1. The specific promise/commitment/claim made in the report
-2. Any numerical values mentioned
+2. Any numerical values mentioned (pay attention to the unit specified)
 3. Any targets or goals stated
 
-IMPORTANT: Only extract these raw parameters. Do NOT extract derived metrics like "fines_per_revenue" or "emissions_intensity" - those will be calculated later.
+IMPORTANT: 
+- Only extract these raw parameters. Do NOT extract derived metrics like "fines_per_revenue" or "emissions_intensity" - those will be calculated later.
+- For scalar metrics with units specified, ensure the extracted value matches the unit context (e.g., emissions in tCO2e, energy in MWh, water in m³).
 
-Return a JSON object where each key is one of the raw parameters above, and the value is either:
+Return a JSON object where each key is one of the raw parameters above (without the unit suffix), and the value is either:
 - A number if a specific value is mentioned
 - A string describing the promise/commitment if no specific number is given
 - null if no relevant promise is found for that parameter
@@ -383,12 +478,35 @@ def validate_claim_with_web_search(claim: str, company_name: str, metric_name: s
 	
 	print(f"    Checking for invalidation evidence for '{metric_name}': {claim[:100]}...")
 	
+	# Check if claim is a scalar (numeric value)
+	# This helps determine if we should include unit context
+	def is_scalar_value(value):
+		"""Check if a value is a scalar (number)."""
+		if value is None:
+			return False
+		if isinstance(value, (int, float)):
+			return True
+		if isinstance(value, str):
+			# Check if string represents a number
+			try:
+				float(value.strip())
+				return True
+			except (ValueError, AttributeError):
+				return False
+		return False
+	
+	claim_is_scalar = is_scalar_value(claim)
+	
+	# Get unit for this metric to provide context (only if claim is scalar)
+	metric_unit = METRIC_UNITS.get(metric_name, "") if claim_is_scalar else ""
+	unit_context = f" (Unit: {metric_unit})" if (metric_unit and claim_is_scalar) else ""
+	
 	# Use OpenAI to search for evidence that invalidates the claim
 	# Optimized prompt to reduce token usage
 	validation_prompt = f"""Find evidence that INVALIDATES this claim by {company_name}:
 
 Claim: {claim}
-Metric: {metric_name}
+Metric: {metric_name}{unit_context}
 
 Search for: violations, fines, lawsuits, regulatory actions, or negative news that contradicts this claim.
 
