@@ -568,7 +568,6 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	
 	print(f"  Step 1: Validating {len(params_to_validate)} parameters found in ESG report (out of {len(ALL_RAW_PARAMS)} total)...")
 	raw_truth = {}
-	all_sources = []  # Collect all sources from validations
 	metric_sources = {}  # Map metric names to their sources
 	
 	# Initialize all raw parameters
@@ -599,8 +598,6 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 			raw_truth[param_name] = is_valid
 			# Store sources for this specific metric
 			metric_sources[param_name] = sources
-			# Add sources to collection
-			all_sources.extend(sources)
 		except Exception as e:
 			# Handle rate limit errors with exponential backoff
 			error_str = str(e).lower()
@@ -611,7 +608,6 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 					is_valid, sources = validate_claim_with_web_search(claim, company_name, param_name)
 					raw_truth[param_name] = is_valid
 					metric_sources[param_name] = sources
-					all_sources.extend(sources)
 				except Exception as retry_error:
 					print(f"      Retry failed for {param_name}: {retry_error}")
 					# Default to valid on persistent errors
@@ -624,8 +620,9 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 				metric_sources[param_name] = []
 	
 	validated_count = sum(1 for v in raw_truth.values() if v)
+	total_sources_collected = sum(len(sources) for sources in metric_sources.values())
 	print(f"  Validation complete: {validated_count}/{len(params_to_validate)} validated parameters marked as TRUE")
-	print(f"  Collected {len(all_sources)} total sources from validations")
+	print(f"  Collected {total_sources_collected} total sources from validations")
 	
 	# Step 2: Propagate truth to derived metrics
 	# For derived metrics, if all underlying raw parameters are true, the derived metric is true
@@ -700,21 +697,21 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	
 	result["truth"] = truth_dict
 	
-	# Store sources in result (remove duplicates based on URL)
-	unique_sources = []
-	seen_urls = set()
-	for source in all_sources:
-		url = source.get("url", "")
-		if url and url not in seen_urls:
-			seen_urls.add(url)
-			unique_sources.append(source)
-	
-	result["sources"] = unique_sources
+	# Initialize metric_sources for all metrics (raw and derived)
+	# This ensures every metric has an entry, even if empty
+	for metric_name in promise_dict.keys():
+		if metric_name not in metric_sources:
+			metric_sources[metric_name] = []
 	
 	# Store sources per metric for frontend access
+	# Only raw parameters that were validated will have sources
+	# Derived metrics will have empty arrays (they're calculated, not validated)
 	result["metric_sources"] = metric_sources
-	print(f"  Stored {len(unique_sources)} unique sources")
-	print(f"  Stored sources for {len([k for k, v in metric_sources.items() if v])} metrics")
+	
+	# Count metrics with sources
+	metrics_with_sources = len([k for k, v in metric_sources.items() if v])
+	total_sources = sum(len(sources) for sources in metric_sources.values())
+	print(f"  Stored sources for {metrics_with_sources} metrics ({total_sources} total sources)")
 	
 	return result
 
