@@ -39,3 +39,33 @@ export const fetchCompanyData = async (ticker) => {
   }
 };
 
+/**
+ * Add a new company to the portfolio
+ * This will find the ESG report, download it, and run analysis
+ */
+export const addCompany = async (companyName, ticker = null) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/company`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        company_name: companyName,
+        ticker: ticker
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error adding company:', error);
+    throw error;
+  }
+};
+
