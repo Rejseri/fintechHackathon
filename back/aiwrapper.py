@@ -90,6 +90,16 @@ ALL_RAW_PARAMS = RAW_ENVIRONMENTAL_PARAMS + RAW_SOCIAL_PARAMS + RAW_GOVERNANCE_P
 # Remove duplicates (like "employees" and "revenue")
 ALL_RAW_PARAMS = list(dict.fromkeys(ALL_RAW_PARAMS))
 
+# Basic operational parameters that don't need validation
+# These are factual metrics that companies wouldn't lie about
+BASIC_PARAMS_EXCLUDED_FROM_VALIDATION = [
+	"revenue",
+	"operating_sites",  # number of factories
+	"employees",  # employee number
+	"production_volume",
+	"operating_countries"
+]
+
 
 def find_promises(esg_report_text: str, json_template: Dict[str, Any]) -> Dict[str, Any]:
 	"""
@@ -510,8 +520,12 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	
 	# Step 1: Validate only raw parameters that were actually found in the ESG report
 	# Only validate parameters that have non-null, non-empty values (i.e., were extracted from the report)
+	# Exclude basic operational parameters that don't need validation
 	params_to_validate = []
 	for param_name in ALL_RAW_PARAMS:
+		# Skip basic parameters that don't need validation
+		if param_name in BASIC_PARAMS_EXCLUDED_FROM_VALIDATION:
+			continue
 		if param_name in promise_dict:
 			promise_value = promise_dict[param_name]
 			# Only include parameters that were actually found in the report
@@ -523,9 +537,14 @@ def find_truths(esg_report_text: str, json_template: Dict[str, Any], company_nam
 	all_sources = []  # Collect all sources from validations
 	metric_sources = {}  # Map metric names to their sources
 	
-	# Initialize all raw parameters - those not found will remain False
+	# Initialize all raw parameters
+	# Basic parameters are set to True (not validated, assumed truthful)
+	# Other parameters default to False (will be validated)
 	for param_name in ALL_RAW_PARAMS:
-		raw_truth[param_name] = False
+		if param_name in BASIC_PARAMS_EXCLUDED_FROM_VALIDATION:
+			raw_truth[param_name] = True  # Assume basic parameters are truthful
+		else:
+			raw_truth[param_name] = False  # Will be validated
 		metric_sources[param_name] = []
 	
 	# Only validate parameters that were actually extracted from the report
