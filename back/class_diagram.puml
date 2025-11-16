@@ -2,61 +2,170 @@
 ' Set direction
 left to right direction
 
-' Define Pydantic Models as classes
+' Define Pydantic Models
 class CompanyPortfolioItem {
   +name: str
   +ticker: str
 }
 
-class DiscrepancySource {
-  +title: str
+class Source {
   +url: str
-  +snippet: str
+  +description: str
 }
 
-class DiscrepancyRisk {
-  +score: float
-  +explanation: str
-  +contradiction_found: bool
-}
-
-class CompanyAnalysis {
+class CompanyData {
   +ticker: str
-  +company_name: str
-  +financial_data: Dict
-  +discrepancy_risk: DiscrepancyRisk
-  +sources: List<DiscrepancySource>
+  +name: str
+  +esg_report: str
+  +promise: Dict[str, Any]
+  +truth: Dict[str, bool]
+  +sources: List[Source]
+  +metric_sources: Dict[str, List[Source]]
 }
 
-' Define FastAPI App as a component
-class FastAPI_App <<FastAPI>> {
-  ' Helper functions
-  - load_data(file_path: str): Dict
-  - extract_name_n_ticker(data: Dict): List<CompanyPortfolioItem>
-  - get_mock_llm_analysis(claim: str, evidence: List): DiscrepancyRisk
+class AddCompanyRequest {
+  +company_name: str
+  +ticker: Optional[str]
+}
 
-  ' Endpoint handler methods
-  + read_root()
-  + get_portfolio()
-  + get_company_analysis(ticker: str)
+' Define paramcalculator classes
+class EnvironmentalParameters {
+  -environmental_fines: float
+  -num_violations: float
+  -num_spills: float
+  -ghg_emissions_scope1: float
+  -energy_consumption: float
+  -water_usage: float
+  -revenue: float
+  -operating_sites: float
+  -production_volume: float
+  -employees: float
+  +fines_per_revenue(): float
+  +violations_per_revenue(): float
+  +emissions_intensity(): float
+  +energy_intensity(): float
+  +water_intensity(): float
+  +energy_efficiency_ratio(): float
+  +carbon_efficiency_ratio(): float
+  +emissions_per_employee(): float
+  +water_per_employee(): float
+  +spill_frequency_per_unit(): float
+}
+
+class SocialParameters {
+  -fatalities: float
+  -worker_injury_rate: float
+  -num_strikes: float
+  -contractor_incident_rate: float
+  -glassdoor_rating: float
+  -glassdoor_ceo_approval: float
+  -female_workforce_pct: float
+  -female_executive_pct: float
+  -employee_turnover_pct: float
+  -employees: float
+  +fatalities_per_1000_employees(): float
+  +strikes_per_1000_employees(): float
+  +total_recordable_incident_rate(): float
+  +employee_engagement_proxy(): float
+  +gender_representation_gap(): float
+  +retention_stability_index(): float
+}
+
+class GovernanceParameters {
+  -num_lawsuits: float
+  -regulatory_investigations: float
+  -corruption_cases: float
+  -anti_competitive_fines: float
+  -board_independence_pct: float
+  -financial_restatements: float
+  -csuite_turnover_rate: float
+  -political_donations: float
+  -major_shareholder_lawsuits: float
+  -revenue: float
+  -operating_countries: float
+  +lawsuits_per_revenue(): float
+  +regulatory_investigations_per_revenue(): float
+  +corruption_cases_per_billion_revenue(): float
+  +anti_competitive_fines_per_revenue(): float
+  +political_donations_per_revenue(): float
+  +major_shareholder_lawsuits_per_billion_revenue(): float
+  +lawsuits_per_operating_country(): float
+  +independent_directors_ratio(): float
+  +executive_stability_index(): float
+}
+
+' Define aiwrapper module functions
+package "aiwrapper" {
+  class aiwrapper_functions {
+    +find_promises(esg_text: str, template: Dict): Dict
+    +calculate_derived_metrics(raw_params: Dict, template: Dict): Dict
+    +validate_claim_with_web_search(claim: str, company: str, metric: str): tuple[bool, List[Source]]
+    +find_truths(esg_text: str, template: Dict, company_name: str): Dict
+    +process_esg_report(esg_text: str, template: Dict): Dict
+  }
+}
+
+' Define FastAPI App
+class FastAPI_App <<FastAPI>> {
+  ' Data management
+  -COMPANY_DB: Dict
+  -PORTFOLIO: List[CompanyPortfolioItem]
+  -openai_client: OpenAI
+  
+  ' Helper functions
+  +load_data(file_path: str): Dict
+  +save_data(file_path: str, data: Dict): bool
+  +extract_name_n_ticker(data: Dict): List[CompanyPortfolioItem]
+  +read_pdf_text(pdf_filename: str): str
+  +process_company_analysis(ticker: str, company_data: Dict): Dict
+  +generate_ticker_from_name(company_name: str): str
+  +create_company_template(ticker: str, name: str, esg_report: str): Dict
+  +find_esg_report_url(company_name: str, ticker: str): str
+  +download_pdf(url: str, filepath: str): bool
+
+  ' Endpoint handlers
+  +read_root()
+  +get_portfolio(): List[CompanyPortfolioItem]
+  +get_company_data(ticker: str): CompanyData
+  +add_company(request: AddCompanyRequest): CompanyPortfolioItem
 }
 
 ' Define relationships
-CompanyAnalysis "1" *-- "1" DiscrepancyRisk : contains
-CompanyAnalysis "1" *-- "0..*" DiscrepancySource : contains
+CompanyData "1" *-- "0..*" Source : contains
+CompanyData "1" *-- "*" Source : "metric_sources"
 
-FastAPI_App ..> CompanyAnalysis : "responds with"
 FastAPI_App ..> CompanyPortfolioItem : "responds with"
+FastAPI_App ..> CompanyData : "responds with"
+FastAPI_App ..> AddCompanyRequest : "accepts"
 
+FastAPI_App --> aiwrapper_functions : "uses"
+aiwrapper_functions --> EnvironmentalParameters : "creates"
+aiwrapper_functions --> SocialParameters : "creates"
+aiwrapper_functions --> GovernanceParameters : "creates"
 
-' Note about the data source and endpoints
+aiwrapper_functions ..> OpenAI : "uses web_search tool"
+
 note right of FastAPI_App
-  Data is loaded from `data.json`.
+  Data is loaded from `data/data.json`.
+  ESG reports are stored as PDFs in `data/` directory.
 
   **Endpoints:**
   - `GET /` -> read_root()
   - `GET /api/portfolio` -> get_portfolio()
-  - `GET /api/company/{ticker}` -> get_company_analysis()
+  - `GET /api/company/{ticker}` -> get_company_data()
+    * Triggers ESG analysis if not scanned
+  - `POST /api/company` -> add_company()
+    * Finds ESG report URL
+    * Downloads PDF
+    * Creates company entry
+end note
+
+note right of aiwrapper_functions
+  **ESG Processing Workflow:**
+  1. find_promises() - Extract raw parameters from ESG report
+  2. calculate_derived_metrics() - Use paramcalculator classes
+  3. find_truths() - Validate with web search
+  4. Propagate truth to derived metrics
 end note
 
 @enduml

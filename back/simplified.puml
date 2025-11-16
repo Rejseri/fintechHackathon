@@ -1,0 +1,65 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam monochrome false
+
+title ESG Lie Detector - Architecture Overview
+
+package "Frontend (React)" #LightBlue {
+  component [Dashboard] as Dashboard
+  component [Company Search] as Search
+  component [Card Popup] as Popup
+}
+
+package "Backend (FastAPI)" #LightGreen {
+  component [API Server] as API
+  component [PDF Processor] as PDF
+  component [Company DB] as DB
+}
+
+package "ESG Analysis Pipeline" #LightYellow {
+  component [Promise Extractor] as Extractor
+  component [Metric Calculator] as Calculator
+  component [Truth Validator] as Validator
+}
+
+package "External Services" #LightCoral {
+  cloud [OpenAI GPT] as GPT
+  cloud [Web Search] as WebSearch
+}
+
+database "Data Storage" #LightGray {
+  database [data.json] as JSON
+  folder [ESG PDFs] as PDFs
+}
+
+' Frontend connections
+Dashboard --> API : GET /api/portfolio
+Popup --> API : GET /api/company/{ticker}
+Search --> API : POST /api/company
+
+' Backend processing
+API --> DB : Load/Save company data
+API --> PDF : Extract text from PDF
+PDF --> PDFs : Read ESG reports
+
+' ESG Analysis Pipeline
+API --> Extractor : process_esg_report()
+Extractor --> GPT : Extract promises\nfrom ESG report
+Extractor --> Calculator : Calculate derived\nmetrics
+Calculator --> Validator : Validate claims\nwith web search
+Validator --> WebSearch : Search for\ncontradicting evidence
+Validator --> API : Return promises\n+ truth values
+
+' Data storage
+DB --> JSON : Persist company data
+
+note bottom of API
+  **Key Features:**
+  • Automatic ESG report analysis
+  • Web-based fact-checking
+  • Derived metric calculations
+  • Source attribution
+end note
+
+@enduml

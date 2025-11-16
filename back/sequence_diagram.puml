@@ -1,22 +1,81 @@
 @startuml
 ' Define participants
 participant "User's Browser" as Frontend
-participant "FastAPI Backend (main.py)" as Backend
-participant "Mock Company DB (data.json)" as DB
+participant "FastAPI Backend\n(main.py)" as Backend
+participant "Company DB\n(data.json)" as DB
+participant "PDF Files\n(data/)" as PDFStorage
+participant "aiwrapper Module" as AIWrapper
+participant "paramcalculator\nClasses" as ParamCalc
+participant "OpenAI API\n(Web Search)" as OpenAI
 
-' Define flow for getting the portfolio
+' === Flow 1: Get Portfolio ===
 Frontend -> Backend ++ : 1. GET /api/portfolio
-Backend -> Backend : 2. load_data("data.json")
-Backend -> DB ++ : 3. Reads data.json
-DB --> Backend -- : 4. Returns file content
+Backend -> Backend : 2. load_data("data/data.json")
+Backend -> DB ++ : 3. Reads data.json file
+DB --> Backend -- : 4. Returns company data
 Backend -> Backend : 5. extract_name_n_ticker(data)
 Backend --> Frontend -- : 6. Returns List[CompanyPortfolioItem]
 
-' Define flow for getting a single company analysis
+' === Flow 2: Get Company Data (with ESG Analysis) ===
 Frontend -> Backend ++ : 7. GET /api/company/{ticker}
-Backend -> DB ++ : 8. Accesses MOCK_COMPANY_DB[ticker]
+Backend -> DB ++ : 8. Accesses COMPANY_DB[ticker]
 DB --> Backend -- : 9. Returns company data
-Backend -> Backend : 10. get_mock_llm_analysis(claim, evidence)
-Backend --> Frontend -- : 11. Returns CompanyAnalysis JSON
+
+alt Company not scanned yet
+  Backend -> Backend : 10. Check if scanned == False
+  Backend -> Backend : 11. process_company_analysis(ticker, company_data)
+  
+  Backend -> PDFStorage ++ : 12. read_pdf_text(esg_report.pdf)
+  PDFStorage --> Backend -- : 13. Returns ESG report text
+  
+  Backend -> AIWrapper ++ : 14. process_esg_report(esg_text, company_data)
+  
+  ' Step 1: Extract promises
+  AIWrapper -> AIWrapper : 15. find_promises(esg_text, template)
+  AIWrapper -> OpenAI ++ : 16. Extract raw parameters using GPT
+  OpenAI --> AIWrapper -- : 17. Returns extracted promises
+  
+  ' Step 2: Calculate derived metrics
+  AIWrapper -> AIWrapper : 18. calculate_derived_metrics(raw_params, template)
+  AIWrapper -> ParamCalc ++ : 19. Create EnvironmentalParameters()
+  ParamCalc --> AIWrapper -- : 20. Returns env_metrics
+  AIWrapper -> ParamCalc ++ : 21. Create SocialParameters()
+  ParamCalc --> AIWrapper -- : 22. Returns social_metrics
+  AIWrapper -> ParamCalc ++ : 23. Create GovernanceParameters()
+  ParamCalc --> AIWrapper -- : 24. Returns gov_metrics
+  
+  ' Step 3: Validate with web search
+  AIWrapper -> AIWrapper : 25. find_truths(esg_text, template, company_name)
+  loop For each raw parameter
+    AIWrapper -> OpenAI ++ : 26. validate_claim_with_web_search(claim, company, metric)
+    OpenAI --> AIWrapper -- : 27. Returns (is_valid, sources)
+  end
+  AIWrapper -> AIWrapper : 28. Propagate truth to derived metrics
+  
+  AIWrapper --> Backend -- : 29. Returns updated company data with promises & truth
+  
+  Backend -> Backend : 30. Update company_data["scanned"] = True
+  Backend -> DB ++ : 31. Save updated data to data.json
+  DB --> Backend -- : 32. Confirms save
+else Company already scanned
+  Backend -> Backend : 33. Use existing company data
+end
+
+Backend -> Backend : 34. Format sources and metric_sources
+Backend --> Frontend -- : 35. Returns CompanyData JSON
+
+' === Flow 3: Add New Company ===
+Frontend -> Backend ++ : 36. POST /api/company\n{company_name, ticker?}
+Backend -> Backend : 37. Generate or validate ticker
+Backend -> OpenAI ++ : 38. find_esg_report_url(company_name, ticker)
+OpenAI --> Backend -- : 39. Returns ESG report PDF URL
+Backend -> PDFStorage ++ : 40. download_pdf(url, filepath)
+PDFStorage --> Backend -- : 41. Confirms PDF saved
+Backend -> Backend : 42. create_company_template(ticker, name, esg_report)
+Backend -> DB ++ : 43. Add company entry to COMPANY_DB
+DB --> Backend -- : 44. Confirms addition
+Backend -> Backend : 45. save_data("data/data.json", COMPANY_DB)
+Backend -> Backend : 46. Update PORTFOLIO list
+Backend --> Frontend -- : 47. Returns CompanyPortfolioItem
 
 @enduml
